@@ -7,16 +7,18 @@ import { useStore } from "@/store/useStore";
 import {
   LayoutDashboard, BarChart2, TrendingUp, Zap,
   Bot, Briefcase, Bell, Settings, ChevronLeft, ChevronRight,
+  Building2,
 } from "lucide-react";
 
 const NAV = [
-  { href: "/dashboard",  icon: LayoutDashboard, label: "Dashboard"  },
-  { href: "/markets",    icon: BarChart2,        label: "Markets"    },
-  { href: "/charts",     icon: TrendingUp,       label: "Charts"     },
-  { href: "/strategies", icon: Zap,              label: "Strategies" },
-  { href: "/bot",        icon: Bot,              label: "AI Bot"     },
-  { href: "/portfolio",  icon: Briefcase,        label: "Portfolio"  },
-  { href: "/alerts",     icon: Bell,             label: "Alerts"     },
+  { href: "/dashboard",    icon: LayoutDashboard, label: "Dashboard"     },
+  { href: "/markets",      icon: BarChart2,        label: "Markets"       },
+  { href: "/charts",       icon: TrendingUp,       label: "Charts"        },
+  { href: "/strategies",   icon: Zap,              label: "Strategies"    },
+  { href: "/bot",          icon: Bot,              label: "AI Bot"        },
+  { href: "/institutions", icon: Building2,        label: "Institutions"  },
+  { href: "/portfolio",    icon: Briefcase,        label: "Portfolio"     },
+  { href: "/alerts",       icon: Bell,             label: "Alerts"        },
 ];
 
 export default function Sidebar() {

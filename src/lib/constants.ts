@@ -19,10 +19,14 @@ export const RISK_COLORS: Record<RiskLevel, string> = {
 };
 
 // Demo watchlist symbols per market
+// US: 13F filing leaders (Berkshire / Sands / Bridgewater top picks)
+// India: Jhunjhunwala + Kacholia portfolio tickers
+// UAE: Real ADX/DFM dividend universe (from StashAway MENA 2026 data)
+// Crypto: top 5 by market cap
 export const DEFAULT_WATCHLIST = {
-  US: ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "SPY"],
-  INDIA: ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "WIPRO.NS"],
-  UAE: ["EMAAR.DFM", "DIB.DFM", "FAB.ADX", "ADNOC.ADX"],
+  US:     ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META", "GOOGL", "SPY"],
+  INDIA:  ["TITAN", "TCS", "INFY", "HDFCBANK", "RELIANCE", "STARHEALTH", "CONCORD"],
+  UAE:    ["EMAAR", "FAB", "ADNOCGAS", "EMIRATESNBD", "DEWA", "ADCB", "DIB"],
   CRYPTO: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"],
 };
 
