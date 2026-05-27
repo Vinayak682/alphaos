@@ -120,10 +120,16 @@ export default function DashboardPage() {
         {/* Quick nav pills */}
         <div className="relative flex items-center gap-2 mt-4 flex-wrap">
           {[
-            { href: "/portfolio",    label: "Full Portfolio" },
-            { href: "/markets",      label: "Markets"        },
-            { href: "/institutions", label: "Institutions"   },
-            { href: "/bot",          label: "AI Bots"        },
+            { href: "/portfolio",  label: "Portfolio"    },
+            { href: "/signals",    label: "Signals"      },
+            { href: "/agent",      label: "AI Agent"     },
+            { href: "/risk",       label: "Risk Index"   },
+            { href: "/traders",    label: "Top Traders"  },
+            { href: "/intel",      label: "Market Intel" },
+            { href: "/strategies", label: "Strategies"   },
+            { href: "/us",         label: "🇺🇸 US"       },
+            { href: "/uae",        label: "🇦🇪 UAE"      },
+            { href: "/india",      label: "🇮🇳 India"    },
           ].map(({ href, label }) => (
             <Link key={href} href={href}
               className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-border/60 text-muted-foreground hover:text-primary hover:border-primary/40 transition-all group"
