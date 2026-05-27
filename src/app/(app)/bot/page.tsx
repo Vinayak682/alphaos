@@ -61,7 +61,7 @@ function StrategyCard({ s, index, onClick }: { s: Strategy; index: number; onCli
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.38, delay: index * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
+      transition={{ duration: 0.38, delay: index * 0.06, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] }}
       whileHover={{ y: -3, transition: { duration: 0.15 } }}
       onClick={onClick}
       className={cn(

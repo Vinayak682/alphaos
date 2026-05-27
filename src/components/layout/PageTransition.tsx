@@ -18,7 +18,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
         initial="initial"
         animate="animate"
         exit="exit"
-        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] }}
         className="h-full"
       >
         {children}

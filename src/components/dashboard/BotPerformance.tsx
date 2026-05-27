@@ -23,7 +23,7 @@ const container = {
 };
 const item = {
   hidden: { opacity: 0, x: -12 },
-  show:   { opacity: 1, x: 0, transition: { ease: [0.25, 0.1, 0.25, 1] } },
+  show:   { opacity: 1, x: 0, transition: { ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] } },
 };
 
 export default function BotPerformance() {

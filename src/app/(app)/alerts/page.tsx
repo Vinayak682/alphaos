@@ -12,7 +12,7 @@ const INITIAL_ALERTS = [
 ];
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
-const row = { hidden: { opacity: 0, x: -14 }, show: { opacity: 1, x: 0, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } } };
+const row = { hidden: { opacity: 0, x: -14 }, show: { opacity: 1, x: 0, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] } } };
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState(INITIAL_ALERTS);

@@ -35,7 +35,7 @@ const rowVariants = {
   hidden: { opacity: 0, y: 10 },
   show:   (i: number) => ({
     opacity: 1, y: 0,
-    transition: { duration: 0.22, delay: i * 0.04, ease: [0.25, 0.1, 0.25, 1] },
+    transition: { duration: 0.22, delay: i * 0.04, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
   }),
 };
 
