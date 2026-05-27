@@ -2,30 +2,51 @@
 import { cn, formatCurrency, formatPct } from "@/lib/utils";
 import { MOCK_PORTFOLIO, MARKET_LABELS, MARKETS } from "@/lib/constants";
 import { useStore } from "@/store/useStore";
-import { Bell, Search, Wifi } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Bell, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface MarketStatus { market: string; open: boolean }
 
 export default function Header() {
   const { activeMarket, setActiveMarket } = useStore();
   const p = MOCK_PORTFOLIO;
+  const [status, setStatus] = useState<MarketStatus | null>(null);
+  const [alerts, setAlerts] = useState(3);
+
+  useEffect(() => {
+    fetch("/api/market-status")
+      .then((r) => r.json())
+      .then(setStatus)
+      .catch(() => null);
+  }, []);
 
   return (
     <header className="h-14 bg-[oklch(0.11_0.01_240)] border-b border-border flex items-center px-4 gap-4 shrink-0">
       {/* Market tabs */}
       <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1">
         {MARKETS.map((m) => (
-          <button
+          <motion.button
             key={m}
             onClick={() => setActiveMarket(m)}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
             className={cn(
-              "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+              "px-3 py-1 rounded-md text-xs font-medium transition-colors relative",
               activeMarket === m
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {MARKET_LABELS[m]}
-          </button>
+            {activeMarket === m && (
+              <motion.div
+                layoutId="market-pill"
+                className="absolute inset-0 bg-card rounded-md shadow-sm"
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+            )}
+            <span className="relative z-10">{MARKET_LABELS[m]}</span>
+          </motion.button>
         ))}
       </div>
 
@@ -35,44 +56,77 @@ export default function Header() {
         <input
           type="text"
           placeholder="Search symbol…"
-          className="w-full bg-muted/40 border border-border rounded-md pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full bg-muted/40 border border-border rounded-md pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
         />
       </div>
 
       <div className="flex-1" />
 
-      {/* Portfolio summary strip */}
+      {/* Live portfolio strip */}
       <div className="hidden lg:flex items-center gap-5 text-xs">
         <div className="text-center">
           <div className="text-muted-foreground">Portfolio</div>
-          <div className="mono font-semibold text-foreground">
-            {formatCurrency(p.totalValue)}
-          </div>
+          <div className="mono font-semibold">{formatCurrency(p.totalValue)}</div>
         </div>
         <div className="text-center">
           <div className="text-muted-foreground">Day P&amp;L</div>
           <div className={cn("mono font-semibold", p.dayPnl >= 0 ? "gain" : "loss")}>
-            {formatCurrency(p.dayPnl)} ({formatPct(p.dayPnlPct)})
+            {formatCurrency(p.dayPnl)}&nbsp;
+            <span className="text-muted-foreground font-normal">({formatPct(p.dayPnlPct)})</span>
           </div>
         </div>
         <div className="text-center">
-          <div className="text-muted-foreground">Total P&amp;L</div>
-          <div className={cn("mono font-semibold", p.totalPnl >= 0 ? "gain" : "loss")}>
-            {formatPct(p.totalPnlPct)}
-          </div>
+          <div className="text-muted-foreground">All-time</div>
+          <div className="mono font-semibold gain">{formatPct(p.totalPnlPct)}</div>
         </div>
       </div>
 
-      {/* Status */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="hidden sm:inline">Live</span>
-        </div>
-        <button className="relative p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
+      {/* Market status + alerts */}
+      <div className="flex items-center gap-2.5">
+        {/* NYSE open/closed pill */}
+        <AnimatePresence>
+          {status && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={cn(
+                "hidden sm:flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-full",
+                status.open
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              <motion.div
+                className={cn("w-1.5 h-1.5 rounded-full", status.open ? "bg-primary" : "bg-muted-foreground")}
+                animate={status.open ? { opacity: [1, 0.3, 1] } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+              NYSE {status.open ? "Open" : "Closed"}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Alerts bell */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="relative p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          onClick={() => setAlerts(0)}
+        >
           <Bell className="w-4 h-4" />
-          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-destructive rounded-full" />
-        </button>
+          <AnimatePresence>
+            {alerts > 0 && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+              >
+                {alerts}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
       </div>
     </header>
   );
