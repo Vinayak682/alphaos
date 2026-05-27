@@ -27,12 +27,12 @@ export default function Header() {
 
   return (
     <header className="h-14 bg-[oklch(0.11_0.01_240)] border-b border-border flex items-center px-4 gap-4 shrink-0">
-      {/* Market tabs */}
+      {/* Market tabs — click sets market AND navigates to /markets */}
       <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1">
         {MARKETS.map((m) => (
           <motion.button
             key={m}
-            onClick={() => setActiveMarket(m)}
+            onClick={() => { setActiveMarket(m); router.push("/markets"); }}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
             className={cn(

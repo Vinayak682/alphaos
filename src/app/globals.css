@@ -50,11 +50,11 @@
 
 /* AlphaOS — Trading dark theme (forced dark-only) */
 :root {
-  --background: oklch(0.10 0.01 240);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.13 0.01 240);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.13 0.01 240);
+  --background: oklch(0.085 0.012 240);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.115 0.012 240);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.115 0.012 240);
   --popover-foreground: oklch(0.95 0 0);
   --primary: oklch(0.82 0.18 155);       /* #00FF88 emerald */
   --primary-foreground: oklch(0.10 0 0);
@@ -90,11 +90,11 @@
 }
 
 .dark {
-  --background: oklch(0.10 0.01 240);
-  --foreground: oklch(0.95 0 0);
-  --card: oklch(0.13 0.01 240);
-  --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.13 0.01 240);
+  --background: oklch(0.085 0.012 240);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.115 0.012 240);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.115 0.012 240);
   --popover-foreground: oklch(0.95 0 0);
   --primary: oklch(0.82 0.18 155);
   --primary-foreground: oklch(0.10 0 0);
@@ -201,7 +201,68 @@
   .tick-up   { animation: flash-gain 0.5s ease; }
   .tick-down { animation: flash-loss 0.5s ease; }
 
-  /* Glow */
+  /* Glow utilities */
   .glow-green { box-shadow: 0 0 20px oklch(from var(--primary) l c h / 0.25); }
   .glow-red   { box-shadow: 0 0 20px oklch(from var(--loss) l c h / 0.25); }
+
+  /* Premium card — subtle gradient border */
+  .card-premium {
+    background: linear-gradient(135deg, oklch(0.13 0.01 240), oklch(0.15 0.02 240));
+    border: 1px solid oklch(1 0 0 / 9%);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.3), inset 0 1px 0 oklch(1 0 0 / 4%);
+  }
+
+  /* Glassmorphism panel */
+  .glass-panel {
+    background: oklch(1 0 0 / 3%);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid oklch(1 0 0 / 10%);
+    box-shadow: 0 4px 24px oklch(0 0 0 / 0.2);
+  }
+
+  /* Gradient text — for big numbers */
+  .text-gradient-green {
+    background: linear-gradient(135deg, #00FF88, #00E07A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Animated gradient border */
+  .border-glow-primary {
+    border-color: oklch(from var(--primary) l c h / 0.3);
+    box-shadow: 0 0 0 1px oklch(from var(--primary) l c h / 0.15),
+                0 0 16px -4px oklch(from var(--primary) l c h / 0.3);
+  }
+
+  /* Market-colored borders */
+  .border-market-us     { border-color: rgba(59,130,246,0.3);  }
+  .border-market-india  { border-color: rgba(34,197,94,0.3);   }
+  .border-market-uae    { border-color: rgba(168,85,247,0.3);  }
+  .border-market-crypto { border-color: rgba(249,115,22,0.3);  }
+
+  /* Hover lift */
+  .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.25);
+  }
+
+  /* Scrollbar hide */
+  .scrollbar-hide { scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Pulse dot */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(1.4); }
+  }
+  .pulse-dot { animation: pulse-dot 1.5s ease infinite; }
+
+  /* Number tick */
+  @keyframes tick-number {
+    0% { transform: translateY(-4px); opacity: 0.6; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .tick-number { animation: tick-number 0.2s ease; }
 }
