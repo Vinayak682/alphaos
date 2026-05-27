@@ -5,20 +5,46 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
 import {
-  LayoutDashboard, BarChart2, TrendingUp, Zap,
-  Bot, Briefcase, Bell, Settings, ChevronLeft, ChevronRight,
-  Building2,
+  LayoutDashboard, Zap, Briefcase, Settings, ChevronRight,
+  Bot, ShieldAlert, BarChart2, Users, Newspaper,
+  TrendingUp, Flag, Globe2, Bell, Building2, LineChart,
 } from "lucide-react";
 
-const NAV = [
-  { href: "/dashboard",    icon: LayoutDashboard, label: "Dashboard"     },
-  { href: "/markets",      icon: BarChart2,        label: "Markets"       },
-  { href: "/charts",       icon: TrendingUp,       label: "Charts"        },
-  { href: "/strategies",   icon: Zap,              label: "Strategies"    },
-  { href: "/bot",          icon: Bot,              label: "AI Bot"        },
-  { href: "/institutions", icon: Building2,        label: "Institutions"  },
-  { href: "/portfolio",    icon: Briefcase,        label: "Portfolio"     },
-  { href: "/alerts",       icon: Bell,             label: "Alerts"        },
+const NAV_SECTIONS = [
+  {
+    label: "CORE",
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+      { href: "/signals",   icon: Zap,             label: "Signals",   badge: "LIVE" },
+      { href: "/portfolio", icon: Briefcase,        label: "Portfolio" },
+      { href: "/agent",     icon: Bot,              label: "AI Agent" },
+      { href: "/risk",      icon: ShieldAlert,      label: "Risk Index" },
+    ],
+  },
+  {
+    label: "INTELLIGENCE",
+    items: [
+      { href: "/strategies", icon: BarChart2, label: "Strategies" },
+      { href: "/traders",    icon: Users,     label: "Top Traders" },
+      { href: "/intel",      icon: Newspaper, label: "Market Intel" },
+    ],
+  },
+  {
+    label: "MARKETS",
+    items: [
+      { href: "/us",    icon: Flag,    label: "US Markets" },
+      { href: "/uae",   icon: Globe2,  label: "UAE Markets" },
+      { href: "/india", icon: TrendingUp, label: "India Markets" },
+    ],
+  },
+  {
+    label: "TOOLS",
+    items: [
+      { href: "/markets",      icon: LineChart,  label: "Live Quotes" },
+      { href: "/institutions", icon: Building2,  label: "Institutions" },
+      { href: "/alerts",       icon: Bell,       label: "Alerts" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -27,9 +53,9 @@ export default function Sidebar() {
 
   return (
     <motion.aside
-      animate={{ width: sidebarCollapsed ? 56 : 208 }}
+      animate={{ width: sidebarCollapsed ? 56 : 216 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="flex flex-col h-full bg-[oklch(0.11_0.01_240)] border-r border-border overflow-hidden"
+      className="flex flex-col h-full bg-[oklch(0.11_0.01_240)] border-r border-border overflow-hidden shrink-0"
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-3.5 h-14 border-b border-border shrink-0">
@@ -56,48 +82,78 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-1.5 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {NAV.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link key={href} href={href} className="block relative">
-              {active && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className="absolute inset-0 bg-primary/12 rounded-md border-r-2 border-primary"
-                  transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                />
+      <nav className="flex-1 px-1.5 py-2 overflow-y-auto overflow-x-hidden space-y-3 scrollbar-hide">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            <AnimatePresence>
+              {!sidebarCollapsed && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.1 }}
+                  className="px-2.5 mb-1 text-[9px] font-semibold tracking-widest text-muted-foreground/50 uppercase"
+                >
+                  {section.label}
+                </motion.p>
               )}
-              <motion.div
-                className={cn(
-                  "relative flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
-                  active ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )}
-                whileHover={{ x: active ? 0 : 2 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <AnimatePresence>
-                  {!sidebarCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -6 }}
-                      transition={{ duration: 0.12 }}
-                      className="whitespace-nowrap"
+            </AnimatePresence>
+            <div className="space-y-0.5">
+              {section.items.map(({ href, icon: Icon, label, badge }: { href: string; icon: React.ElementType; label: string; badge?: string }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link key={href} href={href} className="block relative">
+                    {active && (
+                      <motion.div
+                        layoutId="sidebar-active"
+                        className="absolute inset-0 bg-primary/12 rounded-md border-r-2 border-primary"
+                        transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                      />
+                    )}
+                    <motion.div
+                      className={cn(
+                        "relative flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
+                        active
+                          ? "text-primary font-medium"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      )}
+                      whileHover={{ x: active ? 0 : 2 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     >
-                      {label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </Link>
-          );
-        })}
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <AnimatePresence>
+                        {!sidebarCollapsed && (
+                          <motion.span
+                            initial={{ opacity: 0, x: -6 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -6 }}
+                            transition={{ duration: 0.12 }}
+                            className="whitespace-nowrap flex-1"
+                          >
+                            {label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                      {!sidebarCollapsed && badge && (
+                        <motion.span
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="text-[8px] font-bold px-1 py-0.5 rounded bg-primary/20 text-primary tracking-wider"
+                        >
+                          {badge}
+                        </motion.span>
+                      )}
+                    </motion.div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Bottom */}
-      <div className="px-1.5 pb-3 space-y-0.5 border-t border-border pt-2">
+      <div className="px-1.5 pb-3 space-y-0.5 border-t border-border pt-2 shrink-0">
         <Link href="/settings" className="block relative">
           {pathname === "/settings" && (
             <motion.div layoutId="sidebar-active" className="absolute inset-0 bg-primary/12 rounded-md border-r-2 border-primary" />
@@ -105,7 +161,9 @@ export default function Sidebar() {
           <motion.div
             className={cn(
               "relative flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-colors",
-              pathname === "/settings" ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              pathname === "/settings"
+                ? "text-primary font-medium"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             )}
             whileHover={{ x: 2 }}
           >
