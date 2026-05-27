@@ -8,6 +8,7 @@ import BotPerformance from "@/components/dashboard/BotPerformance";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import { MOCK_PORTFOLIO } from "@/lib/constants";
 import { formatPct } from "@/lib/utils";
+import Link from "next/link";
 
 const p = MOCK_PORTFOLIO;
 
@@ -53,12 +54,20 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
-      {/* Stats row */}
+      {/* Stats row — each card links to relevant page */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Portfolio" value={p.totalValue} prefix="$" sub={`Cash $${(p.cashBalance/1000).toFixed(1)}k`} icon={Briefcase} iconClass="text-blue-400" trend="up" delay={0.05} />
-        <StatCard label="Day P&L" value={p.dayPnl} prefix="$" sub={formatPct(p.dayPnlPct)} subClass="gain" icon={TrendingUp} iconClass="text-primary" trend="up" delay={0.1} />
-        <StatCard label="Total P&L" value={p.totalPnlPct} suffix="%" sub={`$${(p.totalPnl/1000).toFixed(1)}k`} subClass="gain" icon={Activity} iconClass="text-green-400" trend="up" delay={0.15} />
-        <StatCard label="Win Rate" value={p.winRate} suffix="%" decimals={1} sub={`${p.openPositions} open`} icon={Target} iconClass="text-yellow-400" trend="neutral" delay={0.2} />
+        <Link href="/portfolio" className="block">
+          <StatCard label="Portfolio" value={p.totalValue} prefix="$" sub={`Cash $${(p.cashBalance/1000).toFixed(1)}k`} icon={Briefcase} iconClass="text-blue-400" trend="up" delay={0.05} />
+        </Link>
+        <Link href="/portfolio" className="block">
+          <StatCard label="Day P&L" value={p.dayPnl} prefix="$" sub={formatPct(p.dayPnlPct)} subClass="gain" icon={TrendingUp} iconClass="text-primary" trend="up" delay={0.1} />
+        </Link>
+        <Link href="/portfolio" className="block">
+          <StatCard label="Total P&L" value={p.totalPnlPct} suffix="%" sub={`$${(p.totalPnl/1000).toFixed(1)}k`} subClass="gain" icon={Activity} iconClass="text-green-400" trend="up" delay={0.15} />
+        </Link>
+        <Link href="/bot" className="block">
+          <StatCard label="Win Rate" value={p.winRate} suffix="%" decimals={1} sub={`${p.openPositions} open`} icon={Target} iconClass="text-yellow-400" trend="neutral" delay={0.2} />
+        </Link>
       </div>
 
       {/* Main grid */}

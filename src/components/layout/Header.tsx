@@ -5,6 +5,8 @@ import { useStore } from "@/store/useStore";
 import { Bell, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface MarketStatus { market: string; open: boolean }
 
@@ -13,6 +15,8 @@ export default function Header() {
   const p = MOCK_PORTFOLIO;
   const [status, setStatus] = useState<MarketStatus | null>(null);
   const [alerts, setAlerts] = useState(3);
+  const [searchValue, setSearchValue] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     fetch("/api/market-status")
@@ -55,8 +59,16 @@ export default function Header() {
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search symbol…"
-          className="w-full bg-muted/40 border border-border rounded-md pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && searchValue.trim()) {
+              router.push(`/markets`);
+              setSearchValue("");
+            }
+          }}
+          placeholder="Search symbol… (Enter)"
+          className="w-full bg-muted/40 border border-border rounded-md pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-colors"
         />
       </div>
 
@@ -106,7 +118,8 @@ export default function Header() {
           )}
         </AnimatePresence>
 
-        {/* Alerts bell */}
+        {/* Alerts bell — click navigates to /alerts */}
+        <Link href="/alerts">
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
@@ -127,6 +140,7 @@ export default function Header() {
             )}
           </AnimatePresence>
         </motion.button>
+        </Link>
       </div>
     </header>
   );

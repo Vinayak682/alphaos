@@ -1,6 +1,10 @@
 "use client";
 import { motion } from "framer-motion";
 import { cn, formatCurrency, formatPct } from "@/lib/utils";
+import { useStore } from "@/store/useStore";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowRight, ExternalLink } from "lucide-react";
 
 const POSITIONS = [
   { symbol: "NVDA",    side: "LONG",  qty: 12,   entry: 845.20,  current: 891.20,  market: "US"     },
@@ -11,10 +15,10 @@ const POSITIONS = [
 ];
 
 const MARKET_COLORS: Record<string, string> = {
-  US:     "bg-blue-500/20 text-blue-400",
-  CRYPTO: "bg-orange-500/20 text-orange-400",
-  INDIA:  "bg-green-500/20 text-green-400",
-  UAE:    "bg-purple-500/20 text-purple-400",
+  US:     "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  CRYPTO: "bg-orange-500/15 text-orange-400 border-orange-500/20",
+  INDIA:  "bg-green-500/15 text-green-400 border-green-500/20",
+  UAE:    "bg-purple-500/15 text-purple-400 border-purple-500/20",
 };
 
 const rowVariants = {
@@ -26,22 +30,41 @@ const rowVariants = {
 };
 
 export default function OpenPositions() {
+  const { setSelectedSymbol } = useStore();
+  const router = useRouter();
+
+  const handleRowClick = (symbol: string) => {
+    setSelectedSymbol(symbol);
+    router.push("/charts");
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold">Open Positions</h3>
-        <span className="text-xs text-muted-foreground">{POSITIONS.length} active</span>
+    <div className="bg-card border border-border rounded-xl overflow-hidden h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+        <h3 className="text-sm font-semibold font-heading">Open Positions</h3>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{POSITIONS.length} active</span>
+          <Link href="/portfolio"
+            className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors group"
+          >
+            <span>Portfolio</span>
+            <ExternalLink className="w-3 h-3 group-hover:scale-110 transition-transform" />
+          </Link>
+        </div>
       </div>
-      <div className="overflow-x-auto">
+
+      <div className="overflow-x-auto flex-1">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border text-muted-foreground">
-              <th className="text-left px-4 py-2 font-medium">Symbol</th>
-              <th className="text-left px-4 py-2 font-medium">Side</th>
-              <th className="text-right px-4 py-2 font-medium">Qty</th>
-              <th className="text-right px-4 py-2 font-medium">Entry</th>
-              <th className="text-right px-4 py-2 font-medium">Current</th>
-              <th className="text-right px-4 py-2 font-medium">P&L</th>
+              <th className="text-left px-4 py-2.5 font-medium">Symbol</th>
+              <th className="text-left px-4 py-2.5 font-medium">Side</th>
+              <th className="text-right px-4 py-2.5 font-medium">Qty</th>
+              <th className="text-right px-4 py-2.5 font-medium">Entry</th>
+              <th className="text-right px-4 py-2.5 font-medium">Current</th>
+              <th className="text-right px-4 py-2.5 font-medium">P&L</th>
+              <th className="w-8"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -52,6 +75,8 @@ export default function OpenPositions() {
               const pnlPct = p.side === "LONG"
                 ? ((p.current - p.entry) / p.entry) * 100
                 : ((p.entry - p.current) / p.entry) * 100;
+              const isGain = pnl >= 0;
+
               return (
                 <motion.tr
                   key={p.symbol}
@@ -59,26 +84,38 @@ export default function OpenPositions() {
                   variants={rowVariants}
                   initial="hidden"
                   animate="show"
-                  whileHover={{ backgroundColor: "rgba(255,255,255,0.025)" }}
-                  className="cursor-pointer"
+                  whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
+                  className="cursor-pointer group"
+                  onClick={() => handleRowClick(p.symbol)}
+                  title={`View ${p.symbol} chart`}
                 >
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="mono font-medium">{p.symbol}</span>
-                      <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", MARKET_COLORS[p.market])}>
+                      <span className="mono font-semibold text-sm group-hover:text-primary transition-colors">{p.symbol}</span>
+                      <span className={cn("px-1.5 py-0.5 rounded border text-[9px] font-medium", MARKET_COLORS[p.market])}>
                         {p.market}
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5">
-                    <span className={cn("font-semibold", p.side === "LONG" ? "gain" : "loss")}>{p.side}</span>
+                  <td className="px-4 py-3">
+                    <span className={cn(
+                      "text-xs font-bold px-2 py-0.5 rounded",
+                      p.side === "LONG"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-destructive/10 text-destructive"
+                    )}>
+                      {p.side}
+                    </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right mono">{p.qty}</td>
-                  <td className="px-4 py-2.5 text-right mono">{p.entry.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right mono">{p.current.toLocaleString()}</td>
-                  <td className={cn("px-4 py-2.5 text-right mono font-semibold", pnl >= 0 ? "gain" : "loss")}>
-                    <div>{formatCurrency(Math.abs(pnl))}</div>
-                    <div className="text-[10px] font-normal">{formatPct(pnlPct)}</div>
+                  <td className="px-4 py-3 text-right mono text-muted-foreground">{p.qty}</td>
+                  <td className="px-4 py-3 text-right mono">{p.entry.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right mono font-medium">{p.current.toLocaleString()}</td>
+                  <td className={cn("px-4 py-3 text-right", isGain ? "gain" : "loss")}>
+                    <div className="mono font-bold text-xs">{isGain ? "+" : "-"}{formatCurrency(Math.abs(pnl))}</div>
+                    <div className="mono text-[10px] opacity-70">{isGain ? "+" : ""}{pnlPct.toFixed(2)}%</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <ArrowRight className="w-3 h-3 text-muted-foreground/30 group-hover:text-primary/60 group-hover:translate-x-0.5 transition-all" />
                   </td>
                 </motion.tr>
               );
@@ -86,6 +123,14 @@ export default function OpenPositions() {
           </tbody>
         </table>
       </div>
+
+      {/* Footer */}
+      <Link href="/portfolio"
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 border-t border-border text-xs text-muted-foreground hover:text-primary transition-colors group shrink-0"
+      >
+        <span>Full portfolio breakdown</span>
+        <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+      </Link>
     </div>
   );
 }

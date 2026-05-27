@@ -1,6 +1,6 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   Brain, Plus, Play, Pause, Search, Filter,
@@ -210,6 +210,22 @@ export default function BotPage() {
   const [riskFilter, setRiskFilter]         = useState("All");
   const [search, setSearch]                 = useState("");
   const [statusFilter, setStatusFilter]     = useState<"all" | "running" | "paused" | "backtesting">("all");
+
+  // Auto-open drawer if ?strategy=X is in the URL (e.g. navigated from dashboard signals)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const strategyParam = params.get("strategy");
+    if (strategyParam) {
+      const found = STRATEGIES.find(
+        (s) => s.name.toLowerCase() === strategyParam.toLowerCase()
+      );
+      if (found) {
+        // Small delay so the page renders first
+        setTimeout(() => setActiveStrategy(found), 150);
+      }
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     return STRATEGIES.filter(s => {

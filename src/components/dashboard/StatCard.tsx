@@ -28,7 +28,7 @@ export default function StatCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] }}
       whileHover={{ y: -2, transition: { duration: 0.2 } }}
-      className="relative bg-card border border-border rounded-xl p-4 flex items-start gap-4 overflow-hidden group"
+      className="relative bg-card border border-border rounded-xl p-4 flex items-start gap-4 overflow-hidden group hover:border-border/80 cursor-pointer transition-colors"
     >
       {/* Background glow on hover */}
       <div className={cn(
