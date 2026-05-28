@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Bot, Send, Activity, Newspaper, BarChart2, CheckCircle2, Clock } from "lucide-react";
+import { Bot, Send, Activity, Newspaper, BarChart2, CheckCircle2, Clock, Bell } from "lucide-react";
+import { setPendingAlert } from "@/lib/alerts";
 
 const ALPHABOT_SYSTEM_PROMPT = `You are AlphaBot, an elite AI trading analyst for AlphaOS — a multi-market AI trading platform covering US (NASDAQ/NYSE), India (NSE/BSE), UAE (DFM/ADX), and Crypto.
 
@@ -90,7 +92,17 @@ function renderMsg(text: string) {
   );
 }
 
+// Extract uppercase tickers from text (2-8 chars, common equity/crypto pattern)
+function extractTickers(text: string): string[] {
+  const matches = text.match(/\*\*([A-Z]{2,8})\*\*/g) ?? [];
+  const tickers = matches.map(m => m.replace(/\*\*/g, ""));
+  // Filter out common non-ticker bold words
+  const skip = new Set(["BUY", "SELL", "HOLD", "EXIT", "LONG", "SHORT", "STOP", "UAE", "NSE", "BSE", "DFM", "ADX", "ETF", "IPO"]);
+  return [...new Set(tickers.filter(t => !skip.has(t)))];
+}
+
 export default function AgentPage() {
+  const router = useRouter();
   const [visibleLogs, setVisibleLogs] = useState<typeof LOG_ENTRIES>([]);
   const [logIdx, setLogIdx] = useState(0);
   const [chatInput, setChatInput] = useState("");
@@ -99,6 +111,7 @@ export default function AgentPage() {
   ]);
   const [typing, setTyping] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [alertSuggestion, setAlertSuggestion] = useState<string[] | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +137,7 @@ export default function AgentPage() {
     const msg = chatInput.trim();
     if (!msg || streaming) return;
     setChatInput("");
+    setAlertSuggestion(null);
 
     const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
 
@@ -205,7 +219,21 @@ export default function AgentPage() {
       setTyping(false);
     } finally {
       setStreaming(false);
+      // After response, extract tickers and suggest alerts
+      setChatHistory((h) => {
+        const last = h[h.length - 1];
+        if (last?.role === "bot" && last.msg && !last.msg.startsWith("⚠")) {
+          const tickers = extractTickers(last.msg);
+          if (tickers.length > 0) setAlertSuggestion(tickers.slice(0, 3));
+        }
+        return h;
+      });
     }
+  }
+
+  function handleSetAlert(symbol: string) {
+    setPendingAlert(symbol, "price_above", 0);
+    router.push("/alerts");
   }
 
   const LOG_COLORS: Record<string, string> = {
@@ -335,6 +363,43 @@ export default function AgentPage() {
                 </div>
               </motion.div>
             ))}
+            {/* Alert suggestion */}
+            <AnimatePresence>
+              {alertSuggestion && !streaming && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-primary/8 border border-primary/20 rounded-xl px-3.5 py-2.5 space-y-1.5">
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Bell className="w-3 h-3 text-primary" />
+                      Set a price alert?
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {alertSuggestion.map(sym => (
+                        <button
+                          key={sym}
+                          onClick={() => handleSetAlert(sym)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/15 text-primary text-[10px] font-semibold mono hover:bg-primary/25 transition-colors"
+                        >
+                          <Bell className="w-2.5 h-2.5" />
+                          {sym}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setAlertSuggestion(null)}
+                        className="px-2 py-1 rounded-lg text-muted-foreground/50 text-[10px] hover:text-muted-foreground transition-colors"
+                      >
+                        dismiss
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {typing && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                 <div className="bg-muted rounded-xl px-3.5 py-2.5 flex gap-1">

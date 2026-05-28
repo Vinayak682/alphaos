@@ -7,7 +7,7 @@ import { useStore } from "@/store/useStore";
 import {
   LayoutDashboard, Zap, Briefcase, Settings, ChevronRight,
   Bot, ShieldAlert, BarChart2, Users, Newspaper,
-  TrendingUp, Flag, Globe2, Bell, Building2, LineChart, Gauge,
+  TrendingUp, Flag, Globe2, Bell, Building2, LineChart, Gauge, Bitcoin,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -33,9 +33,10 @@ const NAV_SECTIONS = [
   {
     label: "MARKETS",
     items: [
-      { href: "/us",    icon: Flag,    label: "US Markets" },
-      { href: "/uae",   icon: Globe2,  label: "UAE Markets" },
-      { href: "/india", icon: TrendingUp, label: "India Markets" },
+      { href: "/us",     icon: Flag,      label: "US Markets"    },
+      { href: "/uae",    icon: Globe2,    label: "UAE Markets"   },
+      { href: "/india",  icon: TrendingUp,label: "India Markets" },
+      { href: "/crypto", icon: Bitcoin,   label: "Crypto"        },
     ],
   },
   {
