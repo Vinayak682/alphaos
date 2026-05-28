@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 import {
   TrendingUp, TrendingDown, Minus, LogOut, ChevronDown, ChevronUp,
-  Filter, Zap, AlertCircle, Info,
+  Filter, Zap, AlertCircle, Info, RefreshCw,
 } from "lucide-react";
 
 interface Signal {
@@ -172,21 +173,95 @@ function SignalRow({ s, idx }: { s: Signal; idx: number }) {
   );
 }
 
+// Map exchange from market + ticker
+function inferExchange(ticker: string, market: string): string {
+  if (market === "INDIA") return "NSE";
+  if (market === "CRYPTO") return "BINANCE";
+  if (market === "UAE") {
+    const adx = ["ADNOCGAS","DEWA","EMIRATESNBD","FAB","ADNOC","ADQ","ALDAR"];
+    return adx.includes(ticker.toUpperCase()) ? "ADX" : "DFM";
+  }
+  const nasdaq = ["AAPL","NVDA","MSFT","TSLA","AMZN","GOOGL","META","NFLX","AMD","INTC","QCOM"];
+  return nasdaq.includes(ticker.toUpperCase()) ? "NASDAQ" : "NYSE";
+}
+
+function inferCurrency(market: string): string {
+  return market === "INDIA" ? "₹" : market === "UAE" ? "د.إ" : "$";
+}
+
+// Map DB action to UI action
+function mapAction(action: string): Signal["action"] {
+  if (action === "CLOSE") return "EXIT";
+  if (action === "WATCH") return "HOLD";
+  return action as Signal["action"];
+}
+
+function rowFromDb(r: Record<string, unknown>): Signal {
+  const entry = Number(r.entry_price ?? r.price ?? 0);
+  const sl    = r.stop_loss  != null ? Number(r.stop_loss)  : null;
+  const t1    = r.target_1   != null ? Number(r.target_1)   : null;
+  const rr    = (t1 && entry && sl && entry !== sl)
+    ? Math.round(((t1 - entry) / Math.abs(entry - sl)) * 10) / 10
+    : null;
+  const market = String(r.market ?? "US") as Signal["market"];
+  const ticker = String(r.symbol ?? "");
+  return {
+    id:          String(r.id),
+    ticker,
+    exchange:    inferExchange(ticker, market),
+    market,
+    action:      mapAction(String(r.action ?? "HOLD")),
+    entry,
+    sl,
+    t1,
+    t2:          r.target_2 != null ? Number(r.target_2) : null,
+    rr,
+    confidence:  Number(r.confidence ?? 70),
+    risk:        Math.max(10, 100 - Number(r.confidence ?? 70)),
+    rationale:   String(r.notes ?? ""),
+    newsItem:    "",
+    generatedAt: r.created_at
+      ? new Date(String(r.created_at)).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+      : "08:00",
+    currency:    inferCurrency(market),
+  };
+}
+
 export default function SignalsPage() {
+  const [signals, setSignals] = useState<Signal[]>(SIGNALS);
+  const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState<"live" | "mock">("mock");
   const [marketFilter, setMarketFilter] = useState<"ALL" | "US" | "UAE" | "INDIA">("ALL");
   const [actionFilter, setActionFilter] = useState<"ALL" | "BUY" | "SELL" | "HOLD" | "EXIT">("ALL");
 
-  const filtered = SIGNALS.filter((s) => {
+  useEffect(() => {
+    if (!supabase) { setLoading(false); return; }
+    supabase
+      .from("market_signals")
+      .select("*")
+      .eq("active", true)
+      .order("confidence", { ascending: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setSignals(data.map(rowFromDb));
+          setSource("live");
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const filtered = signals.filter((s) => {
     if (marketFilter !== "ALL" && s.market !== marketFilter) return false;
     if (actionFilter !== "ALL" && s.action !== actionFilter) return false;
     return true;
   });
 
   const counts = {
-    BUY:  SIGNALS.filter((s) => s.action === "BUY").length,
-    SELL: SIGNALS.filter((s) => s.action === "SELL").length,
-    HOLD: SIGNALS.filter((s) => s.action === "HOLD").length,
-    EXIT: SIGNALS.filter((s) => s.action === "EXIT").length,
+    BUY:  signals.filter((s) => s.action === "BUY").length,
+    SELL: signals.filter((s) => s.action === "SELL").length,
+    HOLD: signals.filter((s) => s.action === "HOLD").length,
+    EXIT: signals.filter((s) => s.action === "EXIT").length,
   };
 
   return (
@@ -201,15 +276,27 @@ export default function SignalsPage() {
       >
         <div>
           <h1 className="font-heading text-xl font-bold">Signals</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Morning brain run · 08:00 UAE · {SIGNALS.length} signals generated</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Morning brain · 08:00 UAE · {signals.length} signals
+            {source === "live"
+              ? <span className="text-primary ml-1">· Supabase live</span>
+              : <span className="text-yellow-500 ml-1">· mock data</span>}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full bg-primary"
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          />
-          <span className="text-xs text-muted-foreground">Live · May 27</span>
+          {loading && <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
+          {!loading && (
+            <>
+              <motion.div
+                className="w-1.5 h-1.5 rounded-full bg-primary"
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {source === "live" ? "Live" : "Mock"} · {new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              </span>
+            </>
+          )}
         </div>
       </motion.div>
 
