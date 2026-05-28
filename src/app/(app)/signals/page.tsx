@@ -235,7 +235,7 @@ export default function SignalsPage() {
   const [actionFilter, setActionFilter] = useState<"ALL" | "BUY" | "SELL" | "HOLD" | "EXIT">("ALL");
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
+    if (!supabase) { console.log("[signals] supabase client is null"); setLoading(false); return; }
     supabase
       .from("market_signals")
       .select("*")
@@ -243,6 +243,7 @@ export default function SignalsPage() {
       .order("confidence", { ascending: false })
       .limit(50)
       .then(({ data, error }) => {
+        console.log("[signals] supabase result:", { rows: data?.length, error });
         if (!error && data && data.length > 0) {
           setSignals(data.map(rowFromDb));
           setSource("live");

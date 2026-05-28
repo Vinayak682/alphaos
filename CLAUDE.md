@@ -22,7 +22,7 @@ AlphaOS is a multi-market AI-powered trading platform with live market data, ins
 | Fonts | Inter (body) · Space Grotesk (headings) · JetBrains Mono (numbers) |
 | State | Zustand (`src/store/useStore.ts`) |
 | Market Data | Polygon.io free tier — daily OHLCV aggregates only |
-| Database | Supabase PostgreSQL (project: mxwrfihmfmlhtmynpal) |
+| Database | Supabase PostgreSQL (project: mxwrfiihmfmlhtmynpal) |
 | Deployment | GitHub Pages via GitHub Actions (`output: 'export'`) |
 | Charts | TradingView Lightweight Widget |
 
@@ -82,7 +82,7 @@ src/app/
 - **Markets:** US equities + crypto (BTCUSDT, ETHUSDT via X: prefix)
 
 ### Supabase
-- **URL:** https://mxwrfihmfmlhtmynpal.supabase.co
+- **URL:** https://mxwrfiihmfmlhtmynpal.supabase.co
 - **Anon key:** Safe to expose client-side (in `.env.local` + GitHub Actions workflow)
 - **Service role key:** Server-side only, NEVER commit to GitHub
 - **Migration 001+002 tables:** `us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds`, `market_signals`
@@ -95,7 +95,7 @@ src/app/
   - `company_info` — sector, PE, EPS, market_cap, currency static metadata
 - **RLS:** anon SELECT on all tables (dashboard reads); service_role full write (morning brain)
 - **SQL files:** `supabase/001_alphaos_schema.sql` + `supabase/002_seed_data.sql` + `supabase/003_intelligence_layer.sql`
-- **To update data:** Use Supabase Table Editor at https://mxwrfihmfmlhtmynpal.supabase.co
+- **To update data:** Use Supabase Table Editor at https://mxwrfiihmfmlhtmynpal.supabase.co
 
 ---
 
@@ -164,7 +164,7 @@ For live Polygon.io data, run locally with `npm run dev`.
 cd /Users/vinayakbhadani/Projects/alphaos/frontend
 npm run dev          # Starts on http://localhost:3000
 # API routes work locally — Polygon.io live data enabled
-# Supabase reads from mxwrfihmfmlhtmynpal project
+# Supabase reads from mxwrfiihmfmlhtmynpal project
 ```
 
 ## Deploy

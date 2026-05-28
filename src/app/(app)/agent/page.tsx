@@ -4,6 +4,35 @@ import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion"
 import { cn } from "@/lib/utils";
 import { Bot, Send, Activity, Newspaper, BarChart2, CheckCircle2, Clock } from "lucide-react";
 
+const ALPHABOT_SYSTEM_PROMPT = `You are AlphaBot, an elite AI trading analyst for AlphaOS — a multi-market AI trading platform covering US (NASDAQ/NYSE), India (NSE/BSE), UAE (DFM/ADX), and Crypto.
+
+Your morning brain runs daily at 08:00 UAE time, analyzing 156+ tickers using RSI(14), MACD(12,26,9), Bollinger Bands, ATR(14), EMA(9/21/50/200), VWAP, news sentiment, and smart money signals (US 13F filings, India FII/DII flows, UAE DFM block deals).
+
+Confidence formula: 0.30×Technical + 0.25×News Sentiment + 0.20×Smart Money + 0.15×Inverse Risk + 0.10×Market Regime. Threshold: ≥70% only.
+
+TODAY'S SIGNALS (morning brain — 08:04 UAE):
+• NVDA (NASDAQ/US) BUY — Entry $918 | SL $898 | T1 $960 | T2 $1,005 | R:R 2.1x | Conf 88% | Risk 28. RSI breakout 8-week base. Citadel+D.E.Shaw 13F accumulation. Blackwell Ultra confirmed.
+• MSFT (NASDAQ/US) BUY — Entry $418 | SL $403 | T1 $445 | T2 $468 | R:R 2.4x | Conf 85% | Risk 24. Azure AI +35% YoY. Institutional inflows Citadel+D.E.Shaw.
+• FAB (ADX/UAE) BUY — Entry AED 14.60 | SL AED 14.00 | T1 AED 15.80 | T2 AED 16.50 | R:R 2.5x | Conf 84% | Risk 34. DFM block buy 8.2M shares. UAE GDP +4.3% Q1.
+• ADNOCGAS (ADX/UAE) BUY — Entry AED 4.32 | SL AED 4.10 | T1 AED 4.75 | T2 AED 5.10 | R:R 2.0x | Conf 82% | Risk 27. ADIA accumulating 4 weeks. 10-year LNG deal signed.
+• HDFCBANK (NSE/India) BUY — Entry ₹1,640 | SL ₹1,580 | T1 ₹1,750 | T2 ₹1,820 | R:R 1.9x | Conf 81% | Risk 41. EMA50 support 3 weeks. FII net buy ₹2,400Cr.
+• EMAAR (DFM/UAE) BUY — Entry AED 8.92 | SL AED 8.50 | T1 AED 9.60 | T2 AED 10.20 | R:R 2.2x | Conf 79% | Risk 31. 6-month support. Dubai real estate +31% YoY.
+• TSLA (NASDAQ/US) SELL — Entry $182 | SL $195 | T1 $162 | T2 $148 | R:R 1.8x | Conf 76% | Risk 58. Below EMA50 on high volume. China share 11% (down from 18% YoY).
+• TCS (NSE/India) HOLD — Entry ₹3,820 | SL ₹3,650 | T1 ₹4,050 | T2 ₹4,200 | R:R 1.7x | Conf 73% | Risk 29. Above EMA200. Q4 beat +4.2%.
+• RELIANCE (NSE/India) EXIT — Conf 72% | Risk 62. RSI 74.2 overbought. Promoter sold ₹340Cr SEBI disclosure.
+• AAPL (NASDAQ/US) HOLD — Entry $189 | SL $181 | T1 $198 | Conf 70% | Risk 38. Pre-WWDC consolidation. AI catalyst pending June 9.
+
+PORTFOLIO RISK: 38/100 (MODERATE) — VIX 42 | Correlation 0.61 | Geo Risk 31 | Sentiment +0.42
+
+RESPONSE RULES:
+- Be direct and decisive. Traders need actionable answers.
+- Bold ticker names (**NVDA**) and action labels (**BUY**).
+- Always give specific numbers (entry, SL, target, R:R, confidence) when discussing a signal.
+- Explain WHY in 1–2 sentences: technical + fundamental + smart money driver.
+- For tickers not in today's list: say no signal today and what would change it.
+- Keep responses to 3–5 sentences unless user asks for more.
+- Currencies: $ for US, ₹ for India, AED for UAE.`;
+
 const LOG_ENTRIES = [
   { time: "08:00:01", type: "info",    msg: "AlphaBot morning brain — starting" },
   { time: "08:00:03", type: "info",    msg: "Fetching US price data from Polygon.io" },
@@ -96,8 +125,10 @@ export default function AgentPage() {
     if (!msg || streaming) return;
     setChatInput("");
 
-    const historySnapshot = chatHistory.slice(-8).map((h) => ({
-      role: h.role,
+    const apiKey = process.env.NEXT_PUBLIC_GROQ_API_KEY;
+
+    const historySnapshot = chatHistory.slice(-10).map((h) => ({
+      role: h.role === "bot" ? "assistant" : "user",
       content: h.msg,
     }));
 
@@ -106,38 +137,70 @@ export default function AgentPage() {
     setStreaming(true);
 
     try {
-      const res = await fetch("/api/agent/chat", {
+      if (!apiKey) throw new Error("NO_KEY");
+
+      // Call Groq directly from browser — Groq supports CORS (allow-origin: *)
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history: historySnapshot }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          stream: true,
+          max_tokens: 600,
+          temperature: 0.35,
+          messages: [
+            { role: "system", content: ALPHABOT_SYSTEM_PROMPT },
+            ...historySnapshot,
+            { role: "user", content: msg },
+          ],
+        }),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+        throw new Error(err?.error?.message ?? `Groq ${res.status}`);
+      }
 
-      // Add empty bot bubble, then fill it as chunks stream in
+      // Add empty bot bubble and stream chunks into it
       setChatHistory((h) => [...h, { role: "bot", msg: "" }]);
       setTyping(false);
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
+      let buf = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        setChatHistory((h) => {
-          const copy = [...h];
-          copy[copy.length - 1] = { ...copy[copy.length - 1], msg: copy[copy.length - 1].msg + chunk };
-          return copy;
-        });
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") break;
+          try {
+            const text = JSON.parse(data).choices?.[0]?.delta?.content;
+            if (text) {
+              setChatHistory((h) => {
+                const copy = [...h];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], msg: copy[copy.length - 1].msg + text };
+                return copy;
+              });
+            }
+          } catch { /* skip malformed SSE chunks */ }
+        }
       }
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "Unknown error";
+      const raw = err instanceof Error ? err.message : "Unknown error";
       setChatHistory((h) => [...h, {
         role: "bot",
-        msg: errMsg.includes("GROQ_API_KEY")
-          ? "⚠ GROQ_API_KEY not set. Add it to .env.local and restart the dev server."
-          : `⚠ ${errMsg}`,
+        msg: raw === "NO_KEY"
+          ? "⚠ GROQ_API_KEY not configured. Add NEXT_PUBLIC_GROQ_API_KEY to .env.local and restart."
+          : `⚠ ${raw}`,
       }]);
       setTyping(false);
     } finally {

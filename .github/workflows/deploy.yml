@@ -40,10 +40,13 @@ jobs:
       - name: Build static export
         run: npm run build
         env:
-          # Supabase public vars — baked into the client bundle at build time
-          NEXT_PUBLIC_SUPABASE_URL: https://mxwrfihmfmlhtmynpal.supabase.co
+          # Supabase — baked into client bundle at build time
+          NEXT_PUBLIC_SUPABASE_URL: https://mxwrfiihmfmlhtmynpal.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14d3JmaWlobWZtbGh0bXlucGFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NjUyNjUsImV4cCI6MjA5NTQ0MTI2NX0.BR-aiF1QSS-L61ba35djVKIKeNiNfEZzzGxsXQSm8wI
-          # No Polygon key here — live quotes only work via the local dev server
+          # AlphaBot — Groq streaming (add GROQ_API_KEY in GitHub repo Secrets)
+          NEXT_PUBLIC_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # Market Intel — Finnhub live news (add FINNHUB_API_KEY in GitHub repo Secrets)
+          NEXT_PUBLIC_FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           NEXT_PUBLIC_API_URL: ""
 
       - name: Setup Pages
