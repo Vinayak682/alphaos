@@ -7,7 +7,7 @@ import { useStore } from "@/store/useStore";
 import {
   LayoutDashboard, Zap, Briefcase, Settings, ChevronRight,
   Bot, ShieldAlert, BarChart2, Users, Newspaper,
-  TrendingUp, Flag, Globe2, Bell, Building2, LineChart,
+  TrendingUp, Flag, Globe2, Bell, Building2, LineChart, Gauge,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -18,7 +18,8 @@ const NAV_SECTIONS = [
       { href: "/signals",   icon: Zap,             label: "Signals",   badge: "LIVE" },
       { href: "/portfolio", icon: Briefcase,        label: "Portfolio" },
       { href: "/agent",     icon: Bot,              label: "AI Agent" },
-      { href: "/risk",      icon: ShieldAlert,      label: "Risk Index" },
+      { href: "/risk",       icon: ShieldAlert,  label: "Risk Index" },
+      { href: "/fear-greed", icon: Gauge,         label: "Fear & Greed" },
     ],
   },
   {
