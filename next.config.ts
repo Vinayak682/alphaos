@@ -1,16 +1,18 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === "production";
+
 const nextConfig: NextConfig = {
-  // Static export for GitHub Pages hosting
-  output: "export",
+  // Static export only for GitHub Pages (production build)
+  // In dev mode: full Next.js server with API routes enabled
+  ...(isProd && { output: "export" }),
 
-  // GitHub Pages serves this repo at /alphaos
-  basePath: "/alphaos",
+  // basePath only needed for GitHub Pages (served at /alphaos)
+  // In dev mode: no prefix so fetch('/api/...') works directly
+  basePath: isProd ? "/alphaos" : "",
 
-  // Trailing slash so GitHub Pages finds index.html correctly
-  trailingSlash: true,
+  trailingSlash: isProd,
 
-  // next/image requires a custom loader in static export mode
   images: { unoptimized: true },
 };
 
