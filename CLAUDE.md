@@ -33,22 +33,30 @@ AlphaOS is a multi-market AI-powered trading platform with live market data, ins
 ### Routing (App Router)
 ```
 src/app/
-├── (app)/           # Authenticated shell — Sidebar + Header + TickerBar
-│   ├── dashboard/   # Main portfolio dashboard
-│   ├── markets/     # Live market quotes (US / India / UAE / Crypto)
-│   ├── charts/      # TradingView chart widget
-│   ├── strategies/  # Strategy detail pages
-│   ├── bot/         # AI bots + strategy drawer (?strategy= param opens drawer)
-│   ├── institutions/# Institutional intelligence (US 13F / India / UAE)
-│   ├── portfolio/   # Portfolio breakdown
-│   ├── alerts/      # Alert management
-│   └── settings/    # App settings
-├── api/             # Server-side only (stripped in static build)
-│   ├── quotes/      # Polygon.io batch quotes
-│   ├── candles/     # OHLCV candle data
+├── (app)/             # Authenticated shell — Sidebar + Header + TickerBar
+│   ├── dashboard/     # Command center: KPIs, equity curve, signal feed, agent log, 10 quick-nav pills
+│   ├── signals/       # BUY/SELL/HOLD/EXIT table — entry/SL/T1/T2/R:R/confidence, expand for Claude rationale
+│   ├── portfolio/     # 15 cross-market positions (US/India/UAE/Crypto), animated equity SVG
+│   ├── agent/         # Terminal brain log, animated counters, Ask AlphaBot streaming chat
+│   ├── risk/          # Animated 0–100 gauge, 6-dim radar chart (recharts), ranked risk table
+│   ├── strategies/    # 6 strategy cards, performance bar chart vs S&P500
+│   ├── traders/       # Top traders by US/UAE/India tab, Top-100 consensus chart
+│   ├── intel/         # Live news feed (HIGH/MED/LOW impact), economic events calendar
+│   ├── us/            # S&P/NASDAQ/DOW/VIX strip, 14 US stocks with AI signal badges
+│   ├── uae/           # DFM/ADX indices, 12 AED stocks with AI signals
+│   ├── india/         # NIFTY/SENSEX/BANKNIFTY, 14 INR stocks with signals
+│   ├── markets/       # Multi-market live quotes (legacy, Binance-style)
+│   ├── charts/        # TradingView chart widget
+│   ├── bot/           # Strategy drawer (?strategy= param)
+│   ├── institutions/  # Institutional intelligence (US 13F / India / UAE)
+│   ├── alerts/        # Alert management
+│   └── settings/      # App settings
+├── api/               # Server-side only (stripped in static build)
+│   ├── quotes/        # Polygon.io batch quotes
+│   ├── candles/       # OHLCV candle data
 │   ├── market-status/ # NYSE open/closed
-│   └── ticker/      # Single ticker info
-└── layout.tsx       # Root layout with font variables
+│   └── ticker/        # Single ticker info
+└── layout.tsx         # Root layout with font variables
 ```
 
 ### Key Libraries / Files
@@ -77,8 +85,16 @@ src/app/
 - **URL:** https://mxwrfihmfmlhtmynpal.supabase.co
 - **Anon key:** Safe to expose client-side (in `.env.local` + GitHub Actions workflow)
 - **Service role key:** Server-side only, NEVER commit to GitHub
-- **Tables:** `us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds`, `market_signals`
-- **SQL files:** `supabase/001_alphaos_schema.sql` + `supabase/002_seed_data.sql`
+- **Migration 001+002 tables:** `us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds`, `market_signals`
+- **Migration 003 tables (intelligence layer — added 2026-05-27):**
+  - `signals_generated` — AI BUY/SELL/HOLD/EXIT with entry/SL/T1/T2/R:R/confidence/rationale
+  - `news_articles` — AI-scored news, sentiment (-1 to +1), impact HIGH/MED/LOW, tickers[]
+  - `economic_events` — FOMC/GDP/CPI/RBI/PMI/earnings calendar with forecast/actual
+  - `block_deals` — NSE/BSE/DFM bulk deal tracker (smart money)
+  - `institutional_holdings` — 13F + superinvestor quarterly positions with delta
+  - `company_info` — sector, PE, EPS, market_cap, currency static metadata
+- **RLS:** anon SELECT on all tables (dashboard reads); service_role full write (morning brain)
+- **SQL files:** `supabase/001_alphaos_schema.sql` + `supabase/002_seed_data.sql` + `supabase/003_intelligence_layer.sql`
 - **To update data:** Use Supabase Table Editor at https://mxwrfihmfmlhtmynpal.supabase.co
 
 ---

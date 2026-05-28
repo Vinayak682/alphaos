@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue, animate } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Bot, Send, ChevronRight, Activity, Newspaper, BarChart2, Cpu, CheckCircle2, Clock } from "lucide-react";
+import { Bot, Send, Activity, Newspaper, BarChart2, CheckCircle2, Clock } from "lucide-react";
 
 const LOG_ENTRIES = [
   { time: "08:00:01", type: "info",    msg: "AlphaBot morning brain — starting" },
@@ -36,15 +36,6 @@ const LOG_ENTRIES = [
   { time: "08:04:36", type: "info",    msg: "AlphaBot morning brain — COMPLETE ✓" },
 ];
 
-const CHAT_RESPONSES: Record<string, string> = {
-  default: "I've analyzed current market conditions across US, UAE, and India. Based on the morning brain run at 08:00 UAE, I see 6 BUY signals, 1 SELL, 2 HOLD, and 1 EXIT. The overall risk index is 38/100 (moderate). Would you like me to detail any specific ticker or market?",
-  nvda: "**NVDA** — BUY signal with 88% confidence. Entry: $918, Stop Loss: $898, Target 1: $960, Target 2: $1,005. R:R = 2.1x. RSI at 62.4 showing momentum without overbought conditions. Citadel and D.E. Shaw increased positions in Q1 2026 13F filings. News catalyst: Blackwell Ultra chip confirmation. Risk score: 28/100 (low).",
-  aapl: "**AAPL** — HOLD signal with 70% confidence. Tight range ahead of WWDC. AI feature integration expected to be announced June 9. Institutional holdings unchanged. Entry price if initiating: $189, Stop: $181. No rush to add — wait for WWDC catalyst to materialize.",
-  reliance: "**RELIANCE** — EXIT signal. RSI at 74.2 indicates overbought conditions. Distribution pattern forming on the daily chart. SEBI filings show promoter sold ₹340Cr last week — a bearish signal. Suggest taking profits on existing positions. Don't add new positions at current price.",
-  emaar: "**EMAAR** — BUY signal with 79% confidence. Entry: د.إ8.92, Stop: د.إ8.50, Target 1: د.إ9.60, Target 2: د.إ10.20. R:R = 2.2x. Dubai real estate is booming — transaction volumes up 31% YoY. Geopolitical risk premium is easing. Relatively low risk score of 31/100.",
-  risk: "Portfolio risk index is currently **38/100 (MODERATE)**. The 6 risk dimensions: VIX=42 (elevated), Portfolio Correlation=0.61 (medium), Sector Weight=balanced, Leverage=0 (good), Geo Risk=31 (moderate — UAE exposure), Sentiment=+0.42 (positive). Main risk: concentration in tech (NVDA+AAPL+MSFT = 42% of US allocation).",
-  strategy: "Today's top-performing strategy is **Momentum Surge** with 3 signals (NVDA, MSFT, FAB) and average confidence of 85.7%. News Catalyst strategy fired the RELIANCE EXIT and TSLA SELL. Copy Trade strategy identified ADNOCGAS BUY based on ADIA accumulation. Mean Reversion has no signals today — market in trending mode, not range.",
-};
 
 function AnimCounter({ target, duration = 1500, suffix = "" }: { target: number; duration?: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -62,6 +53,14 @@ function AnimCounter({ target, duration = 1500, suffix = "" }: { target: number;
   return <span ref={ref}>0{suffix}</span>;
 }
 
+function renderMsg(text: string) {
+  // Render **bold** markdown inline
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((p, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{p}</strong> : p
+  );
+}
+
 export default function AgentPage() {
   const [visibleLogs, setVisibleLogs] = useState<typeof LOG_ENTRIES>([]);
   const [logIdx, setLogIdx] = useState(0);
@@ -70,6 +69,7 @@ export default function AgentPage() {
     { role: "bot", msg: "AlphaBot online. Morning brain run completed at 08:04 UAE time. 10 signals generated across US, UAE, and India markets. Ask me about any ticker, strategy, or risk." },
   ]);
   const [typing, setTyping] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -91,18 +91,58 @@ export default function AgentPage() {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatHistory, typing]);
 
-  function sendMessage() {
+  async function sendMessage() {
     const msg = chatInput.trim();
-    if (!msg) return;
+    if (!msg || streaming) return;
     setChatInput("");
+
+    const historySnapshot = chatHistory.slice(-8).map((h) => ({
+      role: h.role,
+      content: h.msg,
+    }));
+
     setChatHistory((h) => [...h, { role: "user", msg }]);
     setTyping(true);
-    setTimeout(() => {
-      const lower = msg.toLowerCase();
-      const key = Object.keys(CHAT_RESPONSES).find((k) => k !== "default" && lower.includes(k)) ?? "default";
-      setChatHistory((h) => [...h, { role: "bot", msg: CHAT_RESPONSES[key] }]);
+    setStreaming(true);
+
+    try {
+      const res = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, history: historySnapshot }),
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      // Add empty bot bubble, then fill it as chunks stream in
+      setChatHistory((h) => [...h, { role: "bot", msg: "" }]);
       setTyping(false);
-    }, 1200);
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setChatHistory((h) => {
+          const copy = [...h];
+          copy[copy.length - 1] = { ...copy[copy.length - 1], msg: copy[copy.length - 1].msg + chunk };
+          return copy;
+        });
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
+      setChatHistory((h) => [...h, {
+        role: "bot",
+        msg: errMsg.includes("GROQ_API_KEY")
+          ? "⚠ GROQ_API_KEY not set. Add it to .env.local and restart the dev server."
+          : `⚠ ${errMsg}`,
+      }]);
+      setTyping(false);
+    } finally {
+      setStreaming(false);
+    }
   }
 
   const LOG_COLORS: Record<string, string> = {
@@ -204,7 +244,7 @@ export default function AgentPage() {
             </div>
             <span className="text-sm font-semibold">Ask AlphaBot</span>
             <div className="flex-1" />
-            <span className="text-[10px] text-muted-foreground">Try: NVDA, RELIANCE, risk, strategy</span>
+            <span className="text-[10px] text-muted-foreground">Powered by Groq · Llama 3.3 70B</span>
           </div>
           <div ref={chatRef} className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
             {chatHistory.map((m, i) => (
@@ -221,7 +261,14 @@ export default function AgentPage() {
                     ? "bg-primary/15 text-foreground"
                     : "bg-muted text-foreground/90"
                 )}>
-                  {m.msg}
+                  {m.role === "bot" ? renderMsg(m.msg) : m.msg}
+                  {m.role === "bot" && streaming && m === chatHistory[chatHistory.length - 1] && (
+                    <motion.span
+                      className="inline-block w-1.5 h-3 bg-primary/70 ml-0.5 align-middle"
+                      animate={{ opacity: [1, 0, 1] }}
+                      transition={{ duration: 0.6, repeat: Infinity }}
+                    />
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -251,9 +298,15 @@ export default function AgentPage() {
               />
               <motion.button
                 onClick={sendMessage}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium flex items-center gap-1.5"
+                disabled={streaming}
+                whileHover={streaming ? {} : { scale: 1.05 }}
+                whileTap={streaming ? {} : { scale: 0.95 }}
+                className={cn(
+                  "px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-opacity",
+                  streaming
+                    ? "bg-primary/40 text-primary-foreground/50 cursor-not-allowed"
+                    : "bg-primary text-primary-foreground"
+                )}
               >
                 <Send className="w-3.5 h-3.5" />
               </motion.button>
@@ -284,7 +337,7 @@ export default function AgentPage() {
         <div className="flex gap-6 text-xs">
           <span className="text-muted-foreground">Next run: <span className="text-foreground font-medium">08:00 UAE tomorrow (28 May)</span></span>
           <span className="text-muted-foreground">Tickers monitored: <span className="text-foreground font-medium">156</span></span>
-          <span className="text-muted-foreground">Model: <span className="text-foreground font-medium">claude-sonnet-4-6</span></span>
+          <span className="text-muted-foreground">Model: <span className="text-foreground font-medium">Groq / Llama 3.3 70B</span></span>
           <span className="text-muted-foreground">Min confidence: <span className="text-foreground font-medium">70%</span></span>
         </div>
       </motion.div>
