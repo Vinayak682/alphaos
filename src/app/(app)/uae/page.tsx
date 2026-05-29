@@ -2,40 +2,31 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Minus, LogOut, Search, ArrowUpRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, LogOut, Search, ArrowUpRight, Loader2 } from "lucide-react";
+import { useLivePrices } from "@/hooks/useLivePrices";
 
-const INDICES = [
-  { name: "DFM Index",  value: 4_218.3, change: 0.62,  ticker: "DFM"  },
-  { name: "ADX Index",  value: 9_612.8, change: 1.14,  ticker: "ADX"  },
-  { name: "FAB",        value: 14.62,   change: 0.41,  ticker: "FAB"  },
-  { name: "Oil (Brent)",value: 82.40,   change: -0.31, ticker: "BRT"  },
+const STOCK_META = [
+  { ticker: "EMAAR",       name: "Emaar Properties",       signal: "BUY",  conf: 79, risk: 31, exchange: "DFM" },
+  { ticker: "EMIRATESNBD", name: "Emirates NBD",           signal: "HOLD", conf: 68, risk: 32, exchange: "DFM" },
+  { ticker: "DEWA",        name: "Dubai Electricity & Water",signal: "HOLD",conf: 64, risk: 24, exchange: "DFM" },
+  { ticker: "DIB",         name: "Dubai Islamic Bank",     signal: "HOLD", conf: 63, risk: 28, exchange: "DFM" },
+  { ticker: "DEYAAR",      name: "Deyaar Development",     signal: "HOLD", conf: 58, risk: 36, exchange: "DFM" },
 ];
 
-const STOCKS = [
-  { ticker: "FAB",         name: "First Abu Dhabi Bank",   price: 14.62, change: 0.41,  vol: "12.4M",  signal: "BUY",  conf: 84, risk: 34, currency: "د.إ", exchange: "ADX" },
-  { ticker: "EMAAR",       name: "Emaar Properties",       price: 8.92,  change: -0.33, vol: "9.8M",   signal: "BUY",  conf: 79, risk: 31, currency: "د.إ", exchange: "DFM" },
-  { ticker: "ADNOCGAS",    name: "ADNOC Gas",              price: 4.32,  change: 1.21,  vol: "28.1M",  signal: "BUY",  conf: 82, risk: 27, currency: "د.إ", exchange: "ADX" },
-  { ticker: "EMIRATESNBD", name: "Emirates NBD",           price: 18.40, change: 0.82,  vol: "5.2M",   signal: "HOLD", conf: 68, risk: 32, currency: "د.إ", exchange: "DFM" },
-  { ticker: "DEWA",        name: "Dubai Electricity & Water",price: 2.68, change: 0.37, vol: "14.3M",  signal: "HOLD", conf: 64, risk: 24, currency: "د.إ", exchange: "DFM" },
-  { ticker: "ADCB",        name: "Abu Dhabi Comm. Bank",   price: 10.20, change: 0.19,  vol: "7.8M",   signal: "HOLD", conf: 66, risk: 29, currency: "د.إ", exchange: "ADX" },
-  { ticker: "DIB",         name: "Dubai Islamic Bank",     price: 7.14,  change: 0.28,  vol: "6.1M",   signal: "HOLD", conf: 63, risk: 28, currency: "د.إ", exchange: "DFM" },
-  { ticker: "ETISALAT",    name: "e& (Etisalat)",          price: 22.80, change: -0.43, vol: "4.2M",   signal: "HOLD", conf: 61, risk: 33, currency: "د.إ", exchange: "ADX" },
-  { ticker: "DAMAC",       name: "DAMAC Properties",       price: 2.40,  change: 1.68,  vol: "18.4M",  signal: "BUY",  conf: 73, risk: 38, currency: "د.إ", exchange: "DFM" },
-  { ticker: "DEYAAR",      name: "Deyaar Development",     price: 0.98,  change: 0.51,  vol: "11.2M",  signal: "HOLD", conf: 58, risk: 36, currency: "د.إ", exchange: "DFM" },
-  { ticker: "ADNOCDIST",   name: "ADNOC Distribution",     price: 4.08,  change: 0.24,  vol: "8.8M",   signal: "HOLD", conf: 65, risk: 22, currency: "د.إ", exchange: "ADX" },
-  { ticker: "ALDAR",       name: "Aldar Properties",       price: 5.92,  change: 0.51,  vol: "13.2M",  signal: "BUY",  conf: 75, risk: 30, currency: "د.إ", exchange: "ADX" },
-];
+const ALL_TICKERS = STOCK_META.map((s) => s.ticker);
 
 const SIGNAL_CFG = {
-  BUY:  { cls: "bg-primary/15 text-primary border-primary/30",            icon: TrendingUp  },
-  SELL: { cls: "bg-destructive/15 text-destructive border-destructive/30", icon: TrendingDown },
-  HOLD: { cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",   icon: Minus       },
-  EXIT: { cls: "bg-orange-500/15 text-orange-400 border-orange-500/30",   icon: LogOut      },
+  BUY:  { cls: "bg-primary/15 text-primary border-primary/30",           icon: TrendingUp  },
+  SELL: { cls: "bg-destructive/15 text-destructive border-destructive/30",icon: TrendingDown },
+  HOLD: { cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",  icon: Minus       },
+  EXIT: { cls: "bg-orange-500/15 text-orange-400 border-orange-500/30",  icon: LogOut      },
 };
 
 export default function UAEMarketsPage() {
   const [search, setSearch] = useState("");
-  const filtered = STOCKS.filter(
+  const { prices, loading, lastUpdated, liveCount, ticks } = useLivePrices(ALL_TICKERS, "UAE");
+
+  const filtered = STOCK_META.filter(
     (s) => s.ticker.toLowerCase().includes(search.toLowerCase()) || s.name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -46,52 +37,36 @@ export default function UAEMarketsPage() {
           <div>
             <h1 className="font-heading text-xl font-bold flex items-center gap-2">
               🇦🇪 UAE Markets
-              <span className="text-[11px] font-normal text-muted-foreground font-sans">DFM · ADX · NASDAQ Dubai</span>
+              <span className="text-[11px] font-normal text-muted-foreground font-sans">DFM · ADX</span>
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Data via Twelve Data · AI signals from morning brain 08:04 UAE</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Data via Yahoo Finance · {liveCount}/{ALL_TICKERS.length} live
+              {lastUpdated && <span> · Updated {lastUpdated.toLocaleTimeString()}</span>}
+            </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/15 border border-purple-500/30">
-            <motion.div className="w-1.5 h-1.5 rounded-full bg-purple-400" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
-            <span className="text-xs font-medium text-purple-400">DFM OPEN</span>
-            <span className="text-[10px] text-muted-foreground">Closes in 2h 44m</span>
+          <div className="flex items-center gap-2">
+            {loading && <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />}
+            <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", liveCount > 0 ? "bg-primary/15 border-primary/30" : "bg-muted border-border")}>
+              <motion.div className={cn("w-1.5 h-1.5 rounded-full", liveCount > 0 ? "bg-primary" : "bg-muted-foreground")} animate={liveCount > 0 ? { opacity: [1, 0.3, 1] } : {}} transition={{ duration: 1.5, repeat: Infinity }} />
+              <span className={cn("text-xs font-medium", liveCount > 0 ? "text-primary" : "text-muted-foreground")}>{liveCount > 0 ? "LIVE" : "OFFLINE"}</span>
+            </div>
           </div>
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-4 gap-3">
-        {INDICES.map((idx, i) => (
-          <motion.div
-            key={idx.ticker}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
-            className="bg-card border border-border rounded-xl p-3"
-          >
-            <p className="text-[10px] text-muted-foreground font-medium">{idx.name}</p>
-            <p className="font-heading text-xl font-bold mono mt-0.5">{idx.value.toLocaleString()}</p>
-            <p className={cn("text-xs mono font-semibold mt-0.5", idx.change >= 0 ? "gain" : "loss")}>
-              {idx.change >= 0 ? "+" : ""}{idx.change.toFixed(2)}%
-            </p>
-          </motion.div>
-        ))}
-      </div>
-
+      {/* Search */}
       <div className="relative max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search ticker or name…"
-          className="w-full bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-        />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search ticker or name…" className="w-full bg-card border border-border rounded-lg pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" />
       </div>
 
+      {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/20">
-                {["TICKER", "NAME", "EXCHANGE", "PRICE (د.إ)", "CHG %", "VOLUME", "AI SIGNAL", "CONFIDENCE", "RISK"].map((h) => (
+                {["TICKER", "NAME", "EXCHANGE", "PRICE (AED)", "CHG %", "AI SIGNAL", "CONFIDENCE", "RISK"].map((h) => (
                   <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold tracking-widest text-muted-foreground uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -100,35 +75,38 @@ export default function UAEMarketsPage() {
               {filtered.map((s, i) => {
                 const cfg = SIGNAL_CFG[s.signal as keyof typeof SIGNAL_CFG];
                 const Icon = cfg.icon;
+                const lp = prices.get(s.ticker);
+                const price = lp?.price;
+                const changePct = lp?.changePct;
+                const tick = ticks[s.ticker];
+
                 return (
-                  <motion.tr
-                    key={s.ticker}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: i * 0.03 }}
-                    className="border-b border-border/40 hover:bg-accent/20 transition-colors group cursor-pointer"
-                  >
+                  <motion.tr key={s.ticker} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, delay: i * 0.03 }}
+                    className={cn("border-b border-border/40 hover:bg-accent/20 transition-colors group cursor-pointer",
+                      tick === "up" && "bg-primary/5", tick === "down" && "bg-destructive/5"
+                    )}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <span className="mono font-bold">{s.ticker}</span>
-                        <ArrowUpRight className="w-3 h-3 text-muted-foreground/30 group-hover:text-purple-400/60 transition-colors" />
+                        {lp?.isLive && <span className="w-1 h-1 rounded-full bg-primary" />}
+                        <ArrowUpRight className="w-3 h-3 text-muted-foreground/30 group-hover:text-primary/50 transition-colors" />
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{s.name}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">{s.exchange}</span>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{s.exchange}</td>
+                    <td className="px-4 py-3 mono font-semibold">
+                      {price ? `د.إ${price.toFixed(2)}` : "—"}
                     </td>
-                    <td className="px-4 py-3 mono font-semibold">د.إ{s.price.toFixed(2)}</td>
                     <td className="px-4 py-3">
-                      <span className={cn("mono text-sm font-semibold", s.change >= 0 ? "gain" : "loss")}>
-                        {s.change >= 0 ? "+" : ""}{s.change.toFixed(2)}%
-                      </span>
+                      {changePct !== undefined ? (
+                        <span className={cn("mono text-sm font-semibold", changePct >= 0 ? "gain" : "loss")}>
+                          {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
+                        </span>
+                      ) : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-4 py-3 mono text-xs text-muted-foreground">{s.vol}</td>
                     <td className="px-4 py-3">
                       <span className={cn("flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-bold w-fit", cfg.cls)}>
-                        <Icon className="w-3 h-3" />
-                        {s.signal}
+                        <Icon className="w-3 h-3" />{s.signal}
                       </span>
                     </td>
                     <td className="px-4 py-3">
