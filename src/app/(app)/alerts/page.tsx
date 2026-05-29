@@ -12,6 +12,7 @@ import {
   loadConfig, saveConfig, clearConfig, sendTestTelegram, sendTestWhatsApp,
   type NotificationConfig,
 } from "@/lib/notifications";
+import { MessageSquare, PhoneCall } from "lucide-react";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const CONDITION_OPTIONS: { value: AlertCondition; label: string; placeholder: string; prefix: string }[] = [
@@ -178,7 +179,7 @@ function TelegramSetup({ onClose, onConnected }: { onClose: () => void; onConnec
 
         {/* Step content */}
         <div className="px-6 py-4 space-y-4 min-h-[220px]">
-          <AnimatePresence mode="wait">
+          <AnimatePresence>
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                 <p className="text-sm font-semibold">Step 1 — Find the AlphaOS Bot</p>
@@ -278,37 +279,50 @@ function TelegramSetup({ onClose, onConnected }: { onClose: () => void; onConnec
 }
 
 // ── WhatsApp Setup Wizard ─────────────────────────────────────────────────
+// 6-step: Add Contact → Send Activation → Get API Key → Enter Details → Check Phone → Done
 function WhatsAppSetup({ onClose, onConnected }: { onClose: () => void; onConnected: () => void }) {
-  const [step, setStep]       = useState(1);
-  const [phone, setPhone]     = useState("");
-  const [apiKey, setApiKey]   = useState("");
-  const [testing, setTesting] = useState(false);
-  const [testErr, setTestErr] = useState("");
-  const [copied, setCopied]   = useState(false);
+  const [step, setStep]         = useState(1);
+  const [phone, setPhone]       = useState("");
+  const [apiKey, setApiKey]     = useState("");
+  const [testing, setTesting]   = useState(false);
+  const [testErr, setTestErr]   = useState("");
+  const [copied, setCopied]     = useState(false);
+  const [copyWhat, setCopyWhat] = useState<"number" | "text" | null>(null);
 
-  async function handleTest() {
-    if (!phone.trim() || !apiKey.trim()) { setTestErr("Enter phone number and API key"); return; }
-    setTesting(true); setTestErr("");
-    // Normalise phone: keep only digits
-    const cleanPhone = phone.replace(/\D/g, "");
-    const res = await sendTestWhatsApp(cleanPhone, apiKey.trim());
-    setTesting(false);
-    if (res.success) {
-      const cfg = await loadConfig();
-      await saveConfig({ ...cfg, whatsapp: { phone: cleanPhone, apiKey: apiKey.trim(), verifiedAt: new Date().toISOString() } });
-      setStep(5);
-    } else {
-      setTestErr(res.error ?? "Delivery failed — check your phone and API key");
-    }
-  }
-
-  function copyNumber() {
-    navigator.clipboard.writeText("+34 644 59 81 98");
+  function copy(text: string, which: "number" | "text") {
+    navigator.clipboard.writeText(text);
+    setCopyWhat(which);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const steps = ["Add Contact", "Send Message", "Get API Key", "Enter Details", "Verified"];
+  async function handleSendTest() {
+    if (!phone.trim() || !apiKey.trim()) { setTestErr("Enter phone number and API key"); return; }
+    setTesting(true); setTestErr("");
+    try {
+      const res = await sendTestWhatsApp(phone.trim(), apiKey.trim());
+      setTesting(false);
+      if (!res.fired) {
+        setTestErr("Network error — check your internet connection and try again.");
+        return;
+      }
+      // Message fired (may be CORS-opaque) → move to manual confirmation step
+      setStep(5);
+    } catch (err) {
+      setTesting(false);
+      setTestErr(err instanceof Error ? err.message : "Failed to send — check your details.");
+    }
+  }
+
+  async function confirmReceived() {
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cfg = await loadConfig();
+    await saveConfig({ ...cfg, whatsapp: { phone: cleanPhone, apiKey: apiKey.trim(), verifiedAt: new Date().toISOString() } });
+    setStep(6);
+  }
+
+  const steps = ["Add Contact", "Activate", "Get Key", "Details", "Confirm", "Done"];
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
@@ -321,124 +335,202 @@ function WhatsAppSetup({ onClose, onConnected }: { onClose: () => void; onConnec
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-[#25D366]/8">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-[#25D366]/20 flex items-center justify-center text-lg">💬</div>
-            <div><p className="font-heading font-bold text-sm">Connect WhatsApp</p>
-              <p className="text-[10px] text-muted-foreground">Via CallMeBot · Free · No approval needed</p></div>
+            <div>
+              <p className="font-heading font-bold text-sm">Connect WhatsApp</p>
+              <p className="text-[10px] text-muted-foreground">Via CallMeBot · Free · No approval needed</p>
+            </div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="w-4 h-4" /></button>
         </div>
 
-        {/* Step indicator */}
+        {/* Step dots */}
         <div className="flex items-center px-6 pt-4 pb-2 gap-0">
-          {steps.map((s, i) => (
-            <div key={s} className="flex items-center flex-1">
-              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors",
+          {steps.map((_, i) => (
+            <div key={i} className="flex items-center flex-1">
+              <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 transition-all",
                 i + 1 < step  ? "bg-[#25D366] text-black" :
-                i + 1 === step ? "bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/50" :
+                i + 1 === step ? "bg-[#25D366]/20 text-[#25D366] border border-[#25D366]/50 scale-110" :
                 "bg-muted text-muted-foreground")}>
-                {i + 1 < step ? <Check className="w-3 h-3" /> : i + 1}
+                {i + 1 < step ? <Check className="w-2.5 h-2.5" /> : i + 1}
               </div>
-              {i < steps.length - 1 && <div className={cn("flex-1 h-px mx-1 transition-colors", i + 1 < step ? "bg-[#25D366]/40" : "bg-border")} />}
+              {i < steps.length - 1 && (
+                <div className={cn("flex-1 h-px mx-1 transition-colors", i + 1 < step ? "bg-[#25D366]/50" : "bg-border")} />
+              )}
             </div>
           ))}
         </div>
 
-        <div className="px-6 py-4 space-y-4 min-h-[240px]">
-          <AnimatePresence mode="wait">
+        <div className="px-6 py-4 space-y-3 min-h-[260px]">
+          <AnimatePresence>
+
+            {/* Step 1: Add contact */}
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
-                <p className="text-sm font-semibold">Step 1 — Add CallMeBot to Contacts</p>
+                <p className="text-sm font-semibold">Step 1 — Save CallMeBot as a Contact</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  CallMeBot is a free WhatsApp gateway. Save this number in your phone contacts as <strong>"CallMeBot"</strong>:
+                  Save this number in your phone as <strong>"CallMeBot"</strong>. WhatsApp requires you to have a contact before messaging.
                 </p>
                 <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-xl border border-border/60">
-                  <span className="mono text-base font-bold text-[#25D366]">+34 644 59 81 98</span>
-                  <button onClick={copyNumber} className="ml-auto p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-                    {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <PhoneCall className="w-4 h-4 text-[#25D366] shrink-0" />
+                  <span className="mono text-base font-bold text-[#25D366] flex-1">+34 644 59 81 98</span>
+                  <button onClick={() => copy("+34 644 59 81 98", "number")}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0">
+                    {copied && copyWhat === "number" ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
                 <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/15 rounded-lg">
                   <Shield className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground">CallMeBot only sends messages <em>to</em> you — it cannot read your messages or access your contacts.</p>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    CallMeBot only <em>sends</em> messages to you — it cannot read your chats or access your contacts list.
+                  </p>
                 </div>
               </motion.div>
             )}
+
+            {/* Step 2: Send activation */}
             {step === 2 && (
               <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
                 <p className="text-sm font-semibold">Step 2 — Send the Activation Message</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Open WhatsApp and send <strong>exactly</strong> this message to the number you just saved:
+                  Open WhatsApp and send this <strong>exact</strong> message to +34 644 59 81 98:
                 </p>
-                <div className="p-3 bg-muted/40 rounded-xl border border-border/60 text-xs font-medium text-foreground leading-relaxed">
-                  I allow callmebot to send me messages
+                <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-xl border border-border/60">
+                  <MessageSquare className="w-4 h-4 text-[#25D366] shrink-0" />
+                  <span className="text-xs font-medium text-foreground flex-1">I allow callmebot to send me messages</span>
+                  <button onClick={() => copy("I allow callmebot to send me messages", "text")}
+                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0">
+                    {copied && copyWhat === "text" ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground">⚠️ Send it exactly as shown — no changes to the text.</p>
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-yellow-400/8 border border-yellow-400/20">
+                  <AlertCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-yellow-400/90">Copy exactly — typos or extra spaces will prevent activation.</p>
+                </div>
               </motion.div>
             )}
+
+            {/* Step 3: Get API key */}
             {step === 3 && (
               <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
-                <p className="text-sm font-semibold">Step 3 — Copy Your API Key</p>
+                <p className="text-sm font-semibold">Step 3 — Get Your API Key</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  CallMeBot will reply with your personal API key — a short number like <span className="mono">1234567</span>. Copy it, you'll need it in the next step.
+                  CallMeBot will reply on WhatsApp with your personal API key within 1–2 minutes.
                 </p>
                 <div className="p-3 bg-muted/40 rounded-xl border border-border/60 space-y-1.5">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Example reply from CallMeBot:</p>
-                  <p className="text-xs text-foreground italic">"API Granted for phone number +971XXXXXXXX. Your APIKEY is 1234567"</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Example reply:</p>
+                  <p className="text-xs text-foreground italic leading-relaxed">
+                    &ldquo;API Granted for +971XXXXXXXX. Your APIKEY is <span className="mono font-bold text-[#25D366]">1234567</span>&rdquo;
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">It may take up to 2 minutes for the reply to arrive.</p>
+                <p className="text-xs text-muted-foreground">Copy the number (e.g. <span className="mono">1234567</span>) — you&apos;ll enter it in the next step.</p>
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-yellow-400/8 border border-yellow-400/20">
+                  <AlertCircle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-yellow-400/90">No reply after 3 minutes? Ensure you sent the exact message and the number is saved as a contact.</p>
+                </div>
               </motion.div>
             )}
+
+            {/* Step 4: Enter details + send test */}
             {step === 4 && (
               <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-3">
-                <p className="text-sm font-semibold">Step 4 — Enter Your Details</p>
+                <p className="text-sm font-semibold">Step 4 — Enter Your Details &amp; Send Test</p>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">Phone Number (with country code, no +)</label>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">
+                    Phone Number <span className="normal-case text-muted-foreground/60">(with country code, no +)</span>
+                  </label>
                   <input value={phone} onChange={e => { setPhone(e.target.value); setTestErr(""); }}
-                    placeholder="e.g. 971501234567"
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2.5 text-sm mono font-medium focus:outline-none focus:ring-1 focus:ring-[#25D366]/50 placeholder:font-sans placeholder:text-muted-foreground" />
+                    placeholder="e.g. 971501234567  or  447911123456"
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2.5 text-sm mono font-medium focus:outline-none focus:ring-1 focus:ring-[#25D366]/50 placeholder:font-sans placeholder:text-muted-foreground placeholder:text-xs" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">CallMeBot API Key</label>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 block">
+                    CallMeBot API Key
+                  </label>
                   <input value={apiKey} onChange={e => { setApiKey(e.target.value); setTestErr(""); }}
                     placeholder="e.g. 1234567"
                     className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2.5 text-sm mono font-medium focus:outline-none focus:ring-1 focus:ring-[#25D366]/50 placeholder:font-sans placeholder:text-muted-foreground" />
                 </div>
                 {testErr && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-2 p-3 bg-red-400/10 border border-red-400/20 rounded-lg">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="flex items-start gap-2 p-3 bg-red-400/10 border border-red-400/20 rounded-lg">
                     <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
                     <p className="text-xs text-red-400">{testErr}</p>
                   </motion.div>
                 )}
-                <button onClick={handleTest} disabled={testing || !phone.trim() || !apiKey.trim()}
-                  className="w-full py-2.5 rounded-xl bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-sm font-medium hover:bg-[#25D366]/20 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-                  {testing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Sending test…</> : <><Bell className="w-3.5 h-3.5" />Send test &amp; verify</>}
+                <button onClick={handleSendTest} disabled={testing || !phone.trim() || !apiKey.trim()}
+                  className="w-full py-2.5 rounded-xl bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-sm font-semibold hover:bg-[#25D366]/20 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                  {testing
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Sending…</>
+                    : <><Bell className="w-3.5 h-3.5" />Send Test Message</>}
                 </button>
                 <div className="flex items-center gap-1.5 p-2.5 bg-primary/5 border border-primary/15 rounded-lg">
                   <Lock className="w-3 h-3 text-primary shrink-0" />
-                  <p className="text-[10px] text-muted-foreground">Your phone and API key are encrypted with AES-256-GCM before storage. They never leave your device unencrypted.</p>
+                  <p className="text-[10px] text-muted-foreground">Encrypted AES-256-GCM on device. Your API key never leaves unencrypted.</p>
                 </div>
               </motion.div>
             )}
+
+            {/* Step 5: Manual confirmation */}
             {step === 5 && (
-              <motion.div key="s5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center gap-3 py-4">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
+              <motion.div key="s5" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.5, delay: 0.2 }}
+                    className="text-2xl">📱</motion.div>
+                  <p className="text-sm font-semibold">Check Your WhatsApp</p>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  We sent a test message to <span className="mono text-foreground font-medium">+{phone.replace(/\D/g, "")}</span> from <span className="mono">+34 644 59 81 98</span>.
+                  Open WhatsApp — did you receive it?
+                </p>
+                <div className="p-3 bg-muted/40 rounded-xl border border-border/60 space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Expected message:</p>
+                  <p className="text-xs text-foreground">✅ AlphaOS Alert Test — WhatsApp connected! You&apos;ll receive price alerts here.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button onClick={confirmReceived}
+                    className="py-2.5 rounded-xl bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-sm font-semibold hover:bg-[#25D366]/20 transition-colors flex items-center justify-center gap-1.5">
+                    <Check className="w-3.5 h-3.5" />Yes, received!
+                  </button>
+                  <button onClick={() => { setStep(4); setTestErr(""); }}
+                    className="py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center justify-center gap-1.5">
+                    <X className="w-3.5 h-3.5" />No, retry
+                  </button>
+                </div>
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/50">
+                  <AlertCircle className="w-3 h-3 text-muted-foreground/60 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Not received after 2 minutes? Tap <strong>No, retry</strong> and double-check your phone number and API key. Messages may take up to 60 seconds.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Step 6: Success */}
+            {step === 6 && (
+              <motion.div key="s6" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center justify-center gap-3 py-4">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
                   className="w-16 h-16 rounded-full bg-[#25D366]/15 flex items-center justify-center">
                   <CheckCircle2 className="w-8 h-8 text-[#25D366]" />
                 </motion.div>
                 <p className="font-heading font-bold text-base">WhatsApp Connected!</p>
                 <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                  A test message was sent to your WhatsApp. All price alerts will now appear there.
+                  All price alerts will now appear on your WhatsApp instantly.
                 </p>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
                   <Lock className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] text-primary">Credentials encrypted with AES-256 on this device only</span>
+                  <span className="text-[10px] text-primary">Phone + API key encrypted AES-256-GCM — this device only</span>
                 </div>
               </motion.div>
             )}
+
           </AnimatePresence>
         </div>
 
+        {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-          {step < 5 ? (
+          {step < 6 && step !== 5 ? (
             <>
               <button onClick={() => step > 1 ? setStep(s => s - 1) : onClose()}
                 className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
@@ -451,9 +543,12 @@ function WhatsAppSetup({ onClose, onConnected }: { onClose: () => void; onConnec
                 </button>
               )}
             </>
-          ) : (
-            <button onClick={onConnected} className="ml-auto px-6 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">Done</button>
-          )}
+          ) : step === 6 ? (
+            <button onClick={onConnected}
+              className="ml-auto px-6 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
+              Done
+            </button>
+          ) : null}
         </div>
       </motion.div>
     </motion.div>

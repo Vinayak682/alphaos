@@ -176,20 +176,69 @@ export async function sendTestTelegram(chatId: string): Promise<SendResult> {
   });
 }
 
-export async function sendTestWhatsApp(phone: string, apiKey: string): Promise<SendResult> {
-  return callEdgeFn({
-    channel: "whatsapp",
+/**
+ * WhatsApp via CallMeBot — called DIRECTLY from the browser.
+ *
+ * CallMeBot does not set Access-Control-Allow-Origin headers, so the browser
+ * blocks reading the response. However, for a simple GET request the request
+ * IS sent and CallMeBot DOES process it before the CORS error fires.
+ *
+ * Strategy:
+ *   1. Fire a normal fetch — if CORS headers are present, read the body.
+ *   2. On CORS TypeError — the request went through; catch & return { fired: true }.
+ *   3. On any other network error (DNS, timeout) — return { fired: false }.
+ *
+ * The wizard shows a manual confirmation step so the user verifies receipt
+ * themselves, which is the honest UX when we can't read the response.
+ */
+export async function fireWhatsApp(
+  phone: string,
+  apiKey: string,
+  message: string,
+): Promise<{ fired: boolean; confirmed?: boolean }> {
+  const cleanPhone = phone.replace(/\D/g, "");
+  const url =
+    `https://api.callmebot.com/whatsapp.php` +
+    `?phone=${cleanPhone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const text = await res.text();
+    // If we can read the body, CORS was allowed — parse normally
+    if (text.toLowerCase().includes("queued")) return { fired: true, confirmed: true };
+    if (text.toLowerCase().includes("api key")) throw new Error("invalid_key");
+    return { fired: true, confirmed: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    // CORS error: request was sent, we just can't read the response
+    if (msg.includes("fetch") || msg.includes("CORS") || msg.includes("Failed")) {
+      return { fired: true }; // confirmed = undefined → show manual confirm step
+    }
+    if (msg === "invalid_key") {
+      throw new Error("Invalid API key — make sure you copied it exactly from CallMeBot.");
+    }
+    // Real network error (timeout, DNS)
+    return { fired: false };
+  }
+}
+
+export async function sendTestWhatsApp(
+  phone: string,
+  apiKey: string,
+): Promise<{ fired: boolean; confirmed?: boolean }> {
+  return fireWhatsApp(
     phone,
     apiKey,
-    message: "✅ AlphaOS Alert Test — WhatsApp is connected! You'll receive price alerts here.",
-  });
+    "✅ AlphaOS Alert Test — WhatsApp connected! You'll receive price alerts here.",
+  );
 }
 
 /** Send an alert to all connected channels */
 export async function broadcastAlert(message: string): Promise<void> {
-  const cfg = await loadConfig();
-  const jobs: Promise<SendResult>[] = [];
+  const cfg  = await loadConfig();
+  const jobs: Promise<unknown>[] = [];
   if (cfg.telegram?.chatId) jobs.push(sendTelegram(message));
-  if (cfg.whatsapp?.phone)  jobs.push(sendWhatsApp(message));
+  if (cfg.whatsapp?.phone)
+    jobs.push(fireWhatsApp(cfg.whatsapp.phone, cfg.whatsapp.apiKey, message));
   await Promise.allSettled(jobs);
 }
