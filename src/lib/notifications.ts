@@ -177,68 +177,43 @@ export async function sendTestTelegram(chatId: string): Promise<SendResult> {
 }
 
 /**
- * WhatsApp via CallMeBot — called DIRECTLY from the browser.
+ * WhatsApp test — routes through the Supabase Edge Function (server-side).
  *
- * CallMeBot does not set Access-Control-Allow-Origin headers, so the browser
- * blocks reading the response. However, for a simple GET request the request
- * IS sent and CallMeBot DOES process it before the CORS error fires.
+ * The Edge Function calls CallMeBot server-to-server, so there is no browser
+ * CORS restriction and we can read CallMeBot's ACTUAL response. That means:
+ *   - real delivery confirmation ("message queued" → confirmed: true)
+ *   - real error surfacing ("Invalid CallMeBot API key", "Phone not registered")
  *
- * Strategy:
- *   1. Fire a normal fetch — if CORS headers are present, read the body.
- *   2. On CORS TypeError — the request went through; catch & return { fired: true }.
- *   3. On any other network error (DNS, timeout) — return { fired: false }.
- *
- * The wizard shows a manual confirmation step so the user verifies receipt
- * themselves, which is the honest UX when we can't read the response.
+ * Returns { fired } for the wizard's network-vs-app distinction; throws with a
+ * human-readable message on a CallMeBot/validation error so the wizard can show
+ * the precise reason instead of a generic failure.
  */
-export async function fireWhatsApp(
-  phone: string,
-  apiKey: string,
-  message: string,
-): Promise<{ fired: boolean; confirmed?: boolean }> {
-  const cleanPhone = phone.replace(/\D/g, "");
-  const url =
-    `https://api.callmebot.com/whatsapp.php` +
-    `?phone=${cleanPhone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
-
-  try {
-    const res  = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    const text = await res.text();
-    // If we can read the body, CORS was allowed — parse normally
-    if (text.toLowerCase().includes("queued")) return { fired: true, confirmed: true };
-    if (text.toLowerCase().includes("api key")) throw new Error("invalid_key");
-    return { fired: true, confirmed: true };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    // CORS error: request was sent, we just can't read the response
-    if (msg.includes("fetch") || msg.includes("CORS") || msg.includes("Failed")) {
-      return { fired: true }; // confirmed = undefined → show manual confirm step
-    }
-    if (msg === "invalid_key") {
-      throw new Error("Invalid API key — make sure you copied it exactly from CallMeBot.");
-    }
-    // Real network error (timeout, DNS)
-    return { fired: false };
-  }
-}
-
 export async function sendTestWhatsApp(
   phone: string,
   apiKey: string,
 ): Promise<{ fired: boolean; confirmed?: boolean }> {
-  return fireWhatsApp(
+  const res = await callEdgeFn({
+    channel: "whatsapp",
     phone,
     apiKey,
-    "✅ AlphaOS Alert Test — WhatsApp connected! You'll receive price alerts here.",
-  );
+    message: "✅ AlphaOS Alert Test — WhatsApp connected! You'll receive price alerts here.",
+  });
+
+  if (res.success) return { fired: true, confirmed: true };
+
+  // Distinguish a transport failure (retryable) from a real CallMeBot/app error.
+  const err = res.error ?? "";
+  if (/network error|failed to fetch|timed out|aborted/i.test(err)) {
+    return { fired: false };
+  }
+  throw new Error(err || "WhatsApp delivery failed — verify your phone and API key.");
 }
 
-/** Send an alert to all connected channels */
+/** Send an alert to all connected channels (both route through the Edge Function) */
 export async function broadcastAlert(message: string): Promise<void> {
   const cfg  = await loadConfig();
   const jobs: Promise<unknown>[] = [];
   if (cfg.telegram?.chatId) jobs.push(sendTelegram(message));
-  if (cfg.whatsapp?.phone)
-    jobs.push(fireWhatsApp(cfg.whatsapp.phone, cfg.whatsapp.apiKey, message));
+  if (cfg.whatsapp?.phone)  jobs.push(sendWhatsApp(message));
   await Promise.allSettled(jobs);
 }

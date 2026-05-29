@@ -396,8 +396,8 @@ function WhatsAppSetup({ onClose, onConnected }: { onClose: () => void; onConnec
                 </p>
                 <div className="flex items-center gap-2 p-3 bg-muted/40 rounded-xl border border-border/60">
                   <MessageSquare className="w-4 h-4 text-[#25D366] shrink-0" />
-                  <span className="text-xs font-medium text-foreground flex-1">I allow callmebot to send me messages</span>
-                  <button onClick={() => copy("I allow callmebot to send me messages", "text")}
+                  <span className="text-xs font-medium text-foreground flex-1">I allow callmebot to send me messages on WhatsApp</span>
+                  <button onClick={() => copy("I allow callmebot to send me messages on WhatsApp", "text")}
                     className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0">
                     {copied && copyWhat === "text" ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
