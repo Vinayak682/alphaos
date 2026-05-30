@@ -130,6 +130,7 @@ export default function IntelPage() {
       if (general.ok) results.push(...await general.json());
       if (crypto.ok)  results.push(...await crypto.json());
 
+      setIsLive(true);
       if (results.length === 0) return;
 
       // Deduplicate by id, sort newest first, cap at 20
