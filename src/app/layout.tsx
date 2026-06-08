@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 // Primary body font — crisp, professional, industry-standard
@@ -41,6 +42,13 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased dark`}
     >
+      <Script src="https://www.googletagmanager.com/gtag/js?id=G-V2WC358LP4" strategy="afterInteractive" />
+      <Script id="google-analytics" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-V2WC358LP4');
+      `}</Script>
       <body className="h-full flex flex-col">{children}</body>
     </html>
   );
