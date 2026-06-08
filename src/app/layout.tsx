@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
+import { Suspense } from "react";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import "./globals.css";
 
 // Primary body font — crisp, professional, industry-standard
@@ -49,6 +51,9 @@ export default function RootLayout({
         gtag('js', new Date());
         gtag('config', 'G-V2WC358LP4');
       `}</Script>
+      <Suspense fallback={null}>
+        <GoogleAnalytics />
+      </Suspense>
       <body className="h-full flex flex-col">{children}</body>
     </html>
   );
