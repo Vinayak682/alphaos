@@ -1,9 +1,11 @@
 // AlphaBot — Supabase Edge Function
 // Calls Groq (llama-3.3-70b-versatile) and streams response
+// Fetches today's live signals from alpha_signals table before building system prompt
 // Deploy: supabase functions deploy alphabot-chat --project-ref mxwrfiihmfmlhtmynpal
 // Set key: supabase secrets set GROQ_API_KEY=gsk_... --project-ref mxwrfiihmfmlhtmynpal
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL    = "llama-3.3-70b-versatile";
@@ -14,7 +16,38 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM_PROMPT = `You are AlphaBot, an elite AI trading analyst for AlphaOS — a multi-market AI trading platform covering US (NASDAQ/NYSE), India (NSE/BSE), UAE (DFM/ADX), and Crypto.
+// Fetch today's signals from alpha_signals table; returns formatted string for system prompt
+async function fetchLiveSignals(): Promise<string> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !key) return "(live signals unavailable — Supabase not configured)";
+
+  try {
+    const db = createClient(url, key);
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await db
+      .from("alpha_signals")
+      .select("ticker,exchange,market,action,entry,sl,t1,t2,rr,confidence,risk,currency,rationale")
+      .eq("run_date", today)
+      .order("confidence", { ascending: false });
+
+    if (error || !data?.length) return "(no signals for today — using static fallback)";
+
+    return data.map((s: Record<string, unknown>) => {
+      const cur  = String(s.currency ?? "$");
+      const entry = s.entry != null ? `Entry ${cur}${s.entry}` : "";
+      const sl    = s.sl    != null ? `| SL ${cur}${s.sl}`    : "";
+      const t1    = s.t1    != null ? `| T1 ${cur}${s.t1}`    : "";
+      const t2    = s.t2    != null ? `| T2 ${cur}${s.t2}`    : "";
+      const rr    = s.rr    != null ? `| R:R ${s.rr}x`        : "";
+      return `• ${s.ticker} (${s.exchange}/${s.market}) ${s.action} — ${entry} ${sl} ${t1} ${t2} ${rr} | Conf ${s.confidence}% | Risk ${s.risk}. ${s.rationale}`;
+    }).join("\n");
+  } catch {
+    return "(signal fetch error — using static fallback)";
+  }
+}
+
+const SYSTEM_PROMPT_BASE = `You are AlphaBot, an elite AI trading analyst for AlphaOS — a multi-market AI trading platform covering US (NASDAQ/NYSE), India (NSE/BSE), UAE (DFM/ADX), and Crypto.
 
 Your morning brain runs daily at 08:00 UAE time, analyzing 156+ tickers using RSI(14), MACD(12,26,9), Bollinger Bands, ATR(14), EMA(9/21/50/200), VWAP, news sentiment (Marketaux + Finnhub), and smart money signals (US 13F filings, India FII/DII flows, UAE DFM block deals).
 
@@ -70,6 +103,15 @@ serve(async (req: Request) => {
         headers: { ...CORS, "Content-Type": "text/plain" },
       });
     }
+
+    // Build dynamic system prompt with live signals from DB
+    const liveSignals  = await fetchLiveSignals();
+    const SYSTEM_PROMPT = `${SYSTEM_PROMPT_BASE}
+
+TODAY'S SIGNALS (morning brain — 08:04 UAE):
+${liveSignals}
+
+PORTFOLIO RISK: 38/100 (MODERATE) — VIX 42 | Correlation 0.61 | Geo Risk 31 | Sentiment +0.42`;
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
