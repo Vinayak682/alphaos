@@ -47,6 +47,13 @@ jobs:
           NEXT_PUBLIC_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Market Intel — Finnhub live news (add FINNHUB_API_KEY in GitHub repo Secrets)
           NEXT_PUBLIC_FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          # Commodities — gold spot/history via Twelve Data (add TWELVEDATA_API_KEY
+          # in repo Secrets, otherwise /commodities shows gold as unavailable).
+          NEXT_PUBLIC_TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
+          # Commodities — WTI/Brent $/barrel via Alpha Vantage. Optional: the code
+          # falls back to Alpha Vantage's shared "demo" key, which works but is
+          # throttled. Add ALPHAVANTAGE_API_KEY for a dedicated 25 req/day quota.
+          NEXT_PUBLIC_ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
           NEXT_PUBLIC_API_URL: ""
 
       - name: Setup Pages
