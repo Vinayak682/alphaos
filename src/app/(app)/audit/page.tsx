@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   Activity, CheckCircle2, XCircle, AlertTriangle, Clock,
   RefreshCw, Wifi, WifiOff, Loader2, Server, Database, Zap,
-  TrendingUp, ShieldAlert, Brain, Copy, BarChart2, DollarSign,
+  TrendingUp, ShieldAlert, Brain, Copy, BarChart2, DollarSign, Fuel,
 } from "lucide-react";
 
 interface ApiStatus {
@@ -21,51 +21,75 @@ interface PriceCheck {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const FINNHUB_KEY  = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? "";
+const TWELVE_KEY   = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY ?? "";
+const ALPHA_KEY    = process.env.NEXT_PUBLIC_ALPHAVANTAGE_API_KEY || "demo";
 const EDGE_URL     = `${SUPABASE_URL}/functions/v1/market-prices`;
 
 // ─── FEATURE TRUTH MAP ───────────────────────────────────────────────────────
+// Last reconciled against reality: 2026-08-22.
+//
+// Two things dominate this map and are easy to forget:
+//  1. Supabase project mxwrfiihmfmlhtmynpal was DELETED. Anything that reads or
+//     writes the database, or calls an Edge Function, is down until a new
+//     project is wired up — see supabase/RECONNECT.md.
+//  2. CI strips src/app/api before the static export, so every API route is
+//     DEV ONLY: it works on `npm run dev`, never on GitHub Pages.
 const FEATURES = [
   // ─ Prices & Data
-  { category: "Prices & Data", feature: "Ticker Bar Prices",      status: "LIVE",    detail: "Binance WS (Crypto) + Finnhub (US) + Yahoo Finance (India/UAE)" },
-  { category: "Prices & Data", feature: "US Markets Page",        status: "LIVE",    detail: "14 US stocks from Finnhub via Edge Function" },
-  { category: "Prices & Data", feature: "India Markets Page",     status: "LIVE",    detail: "14 NSE stocks from Yahoo Finance via Edge Function" },
-  { category: "Prices & Data", feature: "UAE Markets Page",       status: "LIVE",    detail: "12 DFM/ADX stocks from Yahoo Finance via Edge Function" },
-  { category: "Prices & Data", feature: "Crypto Markets Page",    status: "LIVE",    detail: "Top 20 coins from Binance REST API" },
-  { category: "Prices & Data", feature: "Fear & Greed Index",     status: "LIVE",    detail: "Crypto: alternative.me | US/India/UAE: derived from VIX/RSI" },
+  { category: "Prices & Data", feature: "Ticker Bar Prices",      status: "BROKEN",  detail: "Routes through the market-prices Edge Function — dead with the Supabase project" },
+  { category: "Prices & Data", feature: "US Markets Page",        status: "BROKEN",  detail: "14 US stocks via Edge Function — dead. Finnhub itself is fine; only the proxy is gone" },
+  { category: "Prices & Data", feature: "India Markets Page",     status: "BROKEN",  detail: "NSE stocks via Edge Function — dead. Yahoo also blocks CORS + rate-limits" },
+  { category: "Prices & Data", feature: "UAE Markets Page",       status: "BROKEN",  detail: "DFM/ADX stocks via Edge Function — dead" },
+  { category: "Prices & Data", feature: "Crypto Markets Page",    status: "LIVE",    detail: "Binance REST called directly from the browser — no Supabase dependency" },
+  { category: "Prices & Data", feature: "Fear & Greed Index",     status: "LIVE",    detail: "Crypto: alternative.me direct | US/India/UAE: derived from VIX/RSI" },
   { category: "Prices & Data", feature: "TradingView Charts",     status: "LIVE",    detail: "Official TradingView widget — real OHLCV charts" },
-  { category: "Prices & Data", feature: "Market Intel News",      status: "LIVE",    detail: "Finnhub live financial news feed" },
+  { category: "Prices & Data", feature: "Market Intel News",      status: "LIVE",    detail: "Finnhub live financial news, called direct" },
+  // ─ Commodities
+  { category: "Commodities",   feature: "Oil $/barrel History",   status: "LIVE",    detail: "Real WTI + Brent per-barrel series via Alpha Vantage/EIA, back to 1986" },
+  { category: "Commodities",   feature: "Gold Spot + History",    status: "LIVE",    detail: "XAU/USD spot and ~400 daily sessions via Twelve Data" },
+  { category: "Commodities",   feature: "Commodity Equities",     status: "LIVE",    detail: "19 US-listed oil/gold instruments via Finnhub, all copy-tradeable" },
+  { category: "Commodities",   feature: "Commodity Analytics",    status: "LIVE",    detail: "Series stats, drawdown, CAGR, Brent–WTI spread + correlation, gold technicals" },
+  { category: "Commodities",   feature: "World Reference Data",   status: "STATIC",  detail: "Producers, reserves, importers, central bank gold — curated, labelled with vintage" },
+  { category: "Commodities",   feature: "Non-Brent/WTI Benchmarks",status: "MISSING",detail: "Dubai/Oman, OPEC Basket, Urals, Murban — no free feed exists" },
   // ─ AI & Signals
-  { category: "AI & Signals",  feature: "AlphaBot Chat",          status: "LIVE",    detail: "Groq openai/gpt-oss-120b — streaming chat works" },
-  { category: "AI & Signals",  feature: "AI Signal Generation",   status: "FAKE",    detail: "10 hardcoded signals — Morning Brain pipeline not built" },
-  { category: "AI & Signals",  feature: "Signal Confidence Score",status: "FAKE",    detail: "Hardcoded 70–88% — no real Claude analysis running" },
-  { category: "AI & Signals",  feature: "Signal Rationale",       status: "FAKE",    detail: "Pre-written text — not AI generated at runtime" },
+  { category: "AI & Signals",  feature: "AlphaBot Chat",          status: "LIVE",    detail: "Groq openai/gpt-oss-120b — streaming, works on Pages via CORS" },
+  { category: "AI & Signals",  feature: "AI Signal Generation",   status: "DEV",     detail: "Morning Brain is real: live OHLCV → indicators → news → AI. API route, so dev only" },
+  { category: "AI & Signals",  feature: "Signal Confidence Score",status: "DEV",     detail: "Genuinely model-produced when Morning Brain runs; the Signals page still shows demo rows otherwise" },
+  { category: "AI & Signals",  feature: "Signal Rationale",       status: "DEV",     detail: "Real AI rationale citing actual RSI/MACD/EMA values" },
+  { category: "AI & Signals",  feature: "Signal Persistence",     status: "BROKEN",  detail: "Writes to signals_generated fail — Supabase gone. Signals are returned with a warning, not lost" },
   // ─ Trading
-  { category: "Trading",       feature: "Paper Trade DB",         status: "LIVE",    detail: "Supabase paper_positions table — trades persist" },
-  { category: "Trading",       feature: "New Trade Modal",        status: "LIVE",    detail: "Opens, validates, writes to Supabase — cash deducted" },
-  { category: "Trading",       feature: "Paper Portfolio P&L",    status: "BROKEN",  detail: "current_price never updates after open — P&L frozen at $0" },
-  { category: "Trading",       feature: "Close Position",         status: "LIVE",    detail: "Hover → Close button → realises P&L in Supabase" },
-  { category: "Trading",       feature: "Copy Trade from Signal", status: "MISSING", detail: "No button on Signals page — needs prefill TradeModal" },
-  { category: "Trading",       feature: "Copy Trader Portfolio",  status: "MISSING", detail: "Traders page shows positions — no copy execution" },
+  { category: "Trading",       feature: "New Trade Modal",        status: "LIVE",    detail: "Opens and validates anywhere; the write behind it needs the database" },
+  { category: "Trading",       feature: "Copy Trade from Signal", status: "LIVE",    detail: "Trade button on each signal row → TradeModal prefilled with entry/SL/TP" },
+  { category: "Trading",       feature: "Copy Trader Portfolio",  status: "LIVE",    detail: "Holding chips on Traders + Institutions open a prefilled trade" },
+  { category: "Trading",       feature: "Copy Trade Commodities", status: "LIVE",    detail: "Every row on the Commodities equities tab is copy-tradeable" },
+  { category: "Trading",       feature: "Paper Trade DB",         status: "BROKEN",  detail: "paper_positions is gone with the project. Migration 006 recreates it" },
+  { category: "Trading",       feature: "Paper Portfolio P&L",    status: "DEV",     detail: "GET /api/paper-trades refreshes current_price per market on every call — needs the DB back" },
+  { category: "Trading",       feature: "Close Position",         status: "DEV",     detail: "Realises P&L and returns cash — API route, needs the DB back" },
   // ─ Strategy
   { category: "Strategy",      feature: "Strategy Definitions",   status: "STATIC",  detail: "10 strategies with rules — good reference data" },
   { category: "Strategy",      feature: "Backtesting Engine",     status: "MISSING", detail: "No backtesting — needs historical OHLCV + simulation loop" },
   { category: "Strategy",      feature: "Strategy P&L History",   status: "FAKE",    detail: "Win rates / monthly returns are hardcoded numbers" },
   { category: "Strategy",      feature: "Apply Strategy to Trade",status: "MISSING", detail: "No 'trade this strategy' button wired to paper trading" },
   // ─ Portfolio & Risk
-  { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "FAKE",    detail: "15 hardcoded positions — not from paper trading yet" },
-  { category: "Portfolio & Risk", feature: "Portfolio KPIs",      status: "FAKE",    detail: "MOCK_PORTFOLIO constant — not summed from real trades" },
+  { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "FAKE",    detail: "Hardcoded positions; falls back to mock whenever the paper API returns nothing" },
+  { category: "Portfolio & Risk", feature: "Portfolio KPIs",      status: "FAKE",    detail: "Header reads usePaperPortfolio, but that falls back to MOCK_PORTFOLIO with no DB" },
   { category: "Portfolio & Risk", feature: "Equity Curve",        status: "FAKE",    detail: "8 hardcoded data points" },
   { category: "Portfolio & Risk", feature: "Risk Index",          status: "FAKE",    detail: "Hardcoded 38 — not computed from real positions" },
   { category: "Portfolio & Risk", feature: "Risk Radar",          status: "FAKE",    detail: "Static 6-dimension scores" },
   // ─ Infrastructure
+  { category: "Infrastructure", feature: "Supabase Project",      status: "BROKEN",  detail: "mxwrfiihmfmlhtmynpal returns NXDOMAIN — deleted. See supabase/RECONNECT.md" },
+  { category: "Infrastructure", feature: "Paper Trading Schema",  status: "LIVE",    detail: "Recovered as migration 006 — was never committed and was lost with the project" },
   { category: "Infrastructure", feature: "Supabase Auth",         status: "MISSING", detail: "No login — all data under demo UUID" },
-  { category: "Infrastructure", feature: "Morning Brain (Cron)",  status: "MISSING", detail: "Claude API pipeline not built — no daily signal generation" },
-  { category: "Infrastructure", feature: "Price Feed to Positions",status:"MISSING", detail: "No job to update current_price on open paper positions" },
-  { category: "Infrastructure", feature: "Notification Delivery", status: "MISSING", detail: "Edge Function written but NOT deployed" },
+  { category: "Infrastructure", feature: "Morning Brain (Cron)",  status: "MISSING", detail: "Pipeline exists but nothing schedules it — no daily run" },
+  { category: "Infrastructure", feature: "Notification Delivery", status: "BROKEN",  detail: "send-notification Edge Function died with the project; Telegram token never set" },
+  { category: "Infrastructure", feature: "GitHub Pages Deploy",   status: "LIVE",    detail: "Push to main → static export → live in ~60s, Node 24" },
 ];
 
 const STATUS_CFG = {
   LIVE:    { cls: "bg-primary/15 text-primary border-primary/30",              label: "LIVE",    dot: "bg-primary" },
+  // Built and genuinely working, but behind an API route — CI deletes src/app/api
+  // before the static export, so it runs locally and never on GitHub Pages.
+  DEV:     { cls: "bg-purple-500/15 text-purple-400 border-purple-500/30",      label: "DEV ONLY",dot: "bg-purple-400" },
   STATIC:  { cls: "bg-blue-500/15 text-blue-400 border-blue-500/30",           label: "STATIC",  dot: "bg-blue-400" },
   FAKE:    { cls: "bg-destructive/15 text-destructive border-destructive/30",   label: "FAKE",    dot: "bg-destructive" },
   BROKEN:  { cls: "bg-orange-500/15 text-orange-400 border-orange-500/30",      label: "BROKEN",  dot: "bg-orange-400" },
@@ -74,6 +98,7 @@ const STATUS_CFG = {
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "Prices & Data": Activity,
+  "Commodities":   Fuel,
   "AI & Signals":  Brain,
   "Trading":       DollarSign,
   "Strategy":      BarChart2,
@@ -117,6 +142,8 @@ export default function AuditPage() {
       probeApi("Paper Trade API",     "/api/paper-trades", "Trading"),
       probeApi("Groq LLM",            "https://api.groq.com/openai/v1/models", "AI Chat"),
       probeApi("Crypto Fear & Greed", "https://api.alternative.me/fng/?limit=1", "Crypto"),
+      probeApi("Twelve Data",         `https://api.twelvedata.com/quote?symbol=XAU/USD&apikey=${TWELVE_KEY}`, "Gold"),
+      probeApi("Alpha Vantage",       `https://www.alphavantage.co/query?function=BRENT&interval=monthly&apikey=${ALPHA_KEY}`, "Oil $/bbl"),
     ]);
     setApis(probes.map((p) => p.status === "fulfilled" ? p.value : { name: "Unknown", url: "", status: "error" as const, latencyMs: null, lastSuccess: null, market: "" }));
 
@@ -169,6 +196,7 @@ export default function AuditPage() {
   const filtered = selectedCategory === "ALL" ? FEATURES : FEATURES.filter((f) => f.category === selectedCategory);
 
   const liveCount    = FEATURES.filter((f) => f.status === "LIVE").length;
+  const devCount     = FEATURES.filter((f) => f.status === "DEV").length;
   const fakeCount    = FEATURES.filter((f) => f.status === "FAKE" || f.status === "BROKEN").length;
   const missingCount = FEATURES.filter((f) => f.status === "MISSING").length;
   const connectedApis = apis.filter((a) => a.status === "connected").length;
@@ -196,9 +224,10 @@ export default function AuditPage() {
       </motion.div>
 
       {/* Score strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Features LIVE",    value: liveCount,    total: FEATURES.length, cls: "gain",               icon: CheckCircle2 },
+          { label: "Live on Pages",    value: liveCount,    total: FEATURES.length, cls: "gain",               icon: CheckCircle2 },
+          { label: "Dev Only",         value: devCount,     total: FEATURES.length, cls: "text-purple-400",    icon: Server },
           { label: "Fake / Broken",    value: fakeCount,    total: FEATURES.length, cls: "loss",               icon: XCircle },
           { label: "Not Built Yet",    value: missingCount, total: FEATURES.length, cls: "text-muted-foreground", icon: AlertTriangle },
           { label: "APIs Connected",   value: connectedApis,total: apis.length,     cls: apis.length > 0 && connectedApis === apis.length ? "gain" : "text-yellow-400", icon: Wifi },
