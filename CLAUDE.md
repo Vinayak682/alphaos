@@ -263,8 +263,16 @@ Response shape: `{ success, persisted, warning?, count, signals[], symbolsAnalyz
 | `supabase/003_intelligence_layer.sql` | 6 intelligence tables + paper-trading tables |
 | `supabase/004_seed_signals.sql` | Seed signals |
 | `supabase/005_alpha_signals.sql` | `alpha_signals` for the live signals feed |
+| `supabase/006_paper_trading.sql` | `paper_portfolios`, `paper_positions`, `paper_trade_log` + demo portfolio |
 
-All must be re-run against a new project.
+All must be re-run against a new project. **See `supabase/RECONNECT.md`** for the
+full step-by-step.
+
+⚠️ **006 was missing until 2026-08-22.** The paper-trading tables were created by
+hand in the SQL editor and never committed, so they were lost with the project —
+migrations 001–005 do not recreate them. It was reverse-engineered from the columns
+`src/app/api/paper-trades/route.ts` actually uses. Without it, paper trading fails
+with "Portfolio not found" against a rebuilt database.
 
 ### Tables
 `us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`,

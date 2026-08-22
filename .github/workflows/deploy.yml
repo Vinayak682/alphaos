@@ -21,12 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      # Node 24 matches the local dev environment and clears the runner's
+      # Node 20 deprecation warning.
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -40,9 +42,14 @@ jobs:
       - name: Build static export
         run: npm run build
         env:
-          # Supabase — baked into client bundle at build time
-          NEXT_PUBLIC_SUPABASE_URL: https://mxwrfiihmfmlhtmynpal.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14d3JmaWlobWZtbGh0bXlucGFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NjUyNjUsImV4cCI6MjA5NTQ0MTI2NX0.BR-aiF1QSS-L61ba35djVKIKeNiNfEZzzGxsXQSm8wI
+          # Supabase — baked into client bundle at build time.
+          # These were hardcoded to project mxwrfiihmfmlhtmynpal, which has been
+          # deleted. They now come from repo Secrets so that pointing AlphaOS at a
+          # new project is "set two secrets", with no workflow edit and no redeploy
+          # of this file. If unset, src/lib/supabase.ts yields a null client and the
+          # app falls back to static data rather than failing the build.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           # AlphaBot — Groq streaming (add GROQ_API_KEY in GitHub repo Secrets)
           NEXT_PUBLIC_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           # Market Intel — Finnhub live news (add FINNHUB_API_KEY in GitHub repo Secrets)
@@ -60,7 +67,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: out
 
