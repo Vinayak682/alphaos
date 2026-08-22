@@ -3,66 +3,122 @@
 # AlphaOS — AI Trading Platform
 
 ## Project Overview
-AlphaOS is a multi-market AI-powered trading platform with live market data, institutional intelligence, and world-class strategy analytics. Built with Next.js 16 App Router, Supabase, Polygon.io, and Framer Motion.
+AlphaOS is a multi-market AI-powered trading platform with live market data, institutional
+intelligence, AI-generated trading signals, paper trading, and world-class strategy analytics.
+Built with Next.js 16 App Router, Supabase, Polygon.io, and Framer Motion.
 
-**Live URL:** https://vinayak682.github.io/alphaos/  
-**GitHub:** https://github.com/Vinayak682/alphaos  
-**Local path:** /Users/vinayakbhadani/Projects/alphaos/frontend/  
+**Live URL:** https://vinayak682.github.io/alphaos/
+**GitHub:** https://github.com/Vinayak682/alphaos
+**Canonical working copy:** `/Users/vinayakbhadani/alphaos-dev` ← use this one
 **Deployment:** GitHub Pages (auto-deploys on push to `main` via GitHub Actions)
+
+> ⚠️ **Two working copies exist.** `~/Projects/alphaos/frontend` is a stale second clone that sat
+> 3 commits behind `main` and held ~1,900 lines of uncommitted work (restored into `~/alphaos-dev`
+> on 2026-08-22). Do not develop there. Treat it as an archive only.
+
+---
+
+## 🚨 Current Blockers (as of 2026-08-22)
+
+| Blocker | Impact | Fix |
+|---|---|---|
+| **Supabase project `mxwrfiihmfmlhtmynpal` no longer exists** | DNS returns NXDOMAIN. All DB reads/writes, both Edge Functions (`market-prices`, `send-notification`), paper-trade persistence, and signal persistence are dead. | Create a new Supabase project, re-run migrations 001–005, redeploy Edge Functions, update `.env.local` + the GitHub Actions workflow + `--project-ref` in deploy commands. Needs owner login. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Set in `.env.local`, but points at the dead project. | Replace when the new project exists. |
+| `TELEGRAM_BOT_TOKEN` | Never set. Telegram alerts inert. | `supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref <new-ref>` |
+| `WEBHOOK_SECRET` | Not set. TradingView webhook unauthenticated. | Set in `.env.local`. |
+
+**Everything that does not touch Supabase works.** See the verified-services table below.
 
 ---
 
 ## Accounts & Access
 
 ### Supabase
-- **Project ref:** `mxwrfiihmfmlhtmynpal`
-- **URL:** https://mxwrfiihmfmlhtmynpal.supabase.co
+- **Old project ref:** `mxwrfiihmfmlhtmynpal` — **GONE** (NXDOMAIN, verified 2026-08-22)
 - **Owner account:** `emiratesprice@gmail.com` (org: `emiratesprice`)
 - **NOT under** `vinayakbhadani1998@gmail.com` — that account owns different projects
-- **CLI deploy:** Must `supabase login` with `emiratesprice@gmail.com` before deploying Edge Functions
-- **Dashboard:** https://supabase.com/dashboard/project/mxwrfiihmfmlhtmynpal
+- **CLI deploy:** must `supabase login` as `emiratesprice@gmail.com` before deploying Edge Functions
+- **Never put a `sbp_…` access token in a tracked file.** Use `supabase login` interactively, or an
+  env var. An earlier draft of this file had one pasted in plaintext; it was never committed.
 
 ### GitHub
 - **Repo:** https://github.com/Vinayak682/alphaos
 - **Account:** Vinayak682
-- **Actions:** Auto-deploy on push to `main`
+- **Actions:** auto-deploy on push to `main`
 
 ---
 
 ## Tech Stack
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 16.2.6 (App Router) |
+| Framework | Next.js 16.2.6 (App Router, Turbopack) |
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Animations | Framer Motion |
 | Fonts | Inter (body) · Space Grotesk (headings) · JetBrains Mono (numbers) |
 | State | Zustand (`src/store/useStore.ts`) |
-| Market Data | Polygon.io free tier — daily OHLCV aggregates only |
-| Database | Supabase PostgreSQL (project: mxwrfiihmfmlhtmynpal) |
-| AI Chat | Groq `llama-3.3-70b-versatile` (streaming, works on GitHub Pages via CORS) |
-| News | Finnhub free tier (live financial news for Market Intel) |
+| Market Data | Polygon.io (US/crypto daily OHLCV) · Binance · Yahoo Finance · Twelve Data · Finnhub |
+| Database | Supabase PostgreSQL — **project deleted, must be recreated** |
+| AI | Groq `openai/gpt-oss-120b` (chat + signals) |
+| News | Finnhub free tier |
 | Deployment | GitHub Pages via GitHub Actions (`output: 'export'`) |
 | Charts | TradingView Lightweight Widget |
 | Notifications | Supabase Edge Function → Telegram Bot API + CallMeBot WhatsApp |
 
+### ⚠️ Groq model policy
+`llama-3.3-70b-versatile`, `deepseek-r1-distill-llama-70b`, and
+`meta-llama/llama-4-maverick-17b-128e-instruct` were **all decommissioned by Groq** and now
+return HTTP 404. Every call site was migrated to **`openai/gpt-oss-120b`** on 2026-08-22.
+Do not reinstate the old ids. Verify a model exists before using it:
+
+```bash
+curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $GROQ_API_KEY" | python3 -m json.tool
+```
+
+**gpt-oss quirk:** the model spends part of its token budget on an internal reasoning channel.
+For structured output, give generous `max_tokens` (≥2000) plus `reasoning_effort: "low"` and
+`response_format: { type: "json_object" }`, or the JSON body gets truncated mid-object.
+This exact bug silently produced 0 parsed signals in `/api/morning-brain`.
+
 ---
 
-## Environment Variables (`.env.local`)
+## Environment Variables (`.env.local`, gitignored)
 
 | Variable | Purpose | Status |
 |----------|---------|--------|
-| `POLYGON_API_KEY` | Market data (server-side ONLY) | Set |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Set |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (safe client-side) | Set |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin writes (server-side ONLY) | **NOT SET** |
-| `GROQ_API_KEY` | AlphaBot server-side | Set |
-| `NEXT_PUBLIC_GROQ_API_KEY` | AlphaBot on GitHub Pages (Groq supports CORS) | Set |
-| `NEXT_PUBLIC_FINNHUB_API_KEY` | Live financial news | Set |
-| `WEBHOOK_SECRET` | TradingView webhook auth | Not set |
+| `POLYGON_API_KEY` | Market data (server-side ONLY) | ✅ Working |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | ⚠️ Points at deleted project |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (safe client-side) | ⚠️ Dead project |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin writes (server-side ONLY) | ⚠️ Dead project |
+| `GROQ_API_KEY` | AlphaBot + signals, server-side | ✅ Working |
+| `NEXT_PUBLIC_GROQ_API_KEY` | AlphaBot on GitHub Pages (Groq allows CORS) | ✅ Working |
+| `NEXT_PUBLIC_FINNHUB_API_KEY` | Live news + quotes | ✅ Working |
+| `NEXT_PUBLIC_TWELVEDATA_API_KEY` | India/UAE candles | ✅ Working |
+| `ANTHROPIC_API_KEY` | Claude signals (best quality) | Empty — optional |
+| `GOOGLE_AI_KEY` | Gemini signals | Not set — optional |
+| `WEBHOOK_SECRET` | TradingView webhook auth | ❌ Not set |
 | `NEXT_PUBLIC_API_URL` | FastAPI backend (future) | Placeholder |
 
-**Security:** `.env.local` is gitignored. Never commit API keys. Anon key is safe to expose client-side and is in GitHub Actions workflow.
+### Verified external services (host-level check, 2026-08-22)
+| Service | Result |
+|---|---|
+| Binance REST | ✅ HTTP 200 |
+| alternative.me (Fear & Greed) | ✅ HTTP 200 |
+| Finnhub | ✅ HTTP 200 |
+| Polygon.io | ✅ HTTP 200 |
+| Twelve Data | ✅ HTTP 200 |
+| Groq (`openai/gpt-oss-120b`) | ✅ chat + JSON mode |
+| Yahoo Finance | ⚠️ HTTP 429 (rate-limited, intermittent) |
+| Supabase project | ❌ NXDOMAIN — deleted |
+
+### AI model priority chain (Morning Brain)
+`/api/morning-brain` tries, in order:
+1. **Claude Sonnet 4.6** — if `ANTHROPIC_API_KEY` is set (best quality)
+2. **Gemini 2.0 Flash** — if `GOOGLE_AI_KEY` is set
+3. **Groq `openai/gpt-oss-120b`** — free, currently the active path
+4. Error if no key is set
+
+The `model` column in `signals_generated` records which model produced each signal.
 
 ---
 
@@ -71,222 +127,148 @@ AlphaOS is a multi-market AI-powered trading platform with live market data, ins
 ### Routing (App Router)
 ```
 src/app/
-├── (app)/             # Authenticated shell — Sidebar + Header + TickerBar
-│   ├── dashboard/     # Command center: KPIs, equity curve, signal feed, agent log
-│   ├── signals/       # BUY/SELL/HOLD/EXIT table with AI rationale
-│   ├── portfolio/     # 15 cross-market positions, animated equity SVG
-│   ├── agent/         # Terminal brain log, Ask AlphaBot streaming chat
-│   ├── risk/          # 0–100 gauge, 6-dim radar, ranked risk table
-│   ├── strategies/    # 6 strategy cards vs S&P500
-│   ├── traders/       # US/UAE/India top traders, consensus chart
-│   ├── intel/         # Live Finnhub news + economic calendar
-│   ├── us/            # US market: S&P/NASDAQ/DOW/VIX + 14 stocks
-│   ├── uae/           # UAE: DFM/ADX + 12 AED stocks
-│   ├── india/         # India: NIFTY/SENSEX/BANKNIFTY + 14 INR stocks
-│   ├── markets/       # Multi-market live quotes (Binance-style)
-│   ├── charts/        # TradingView chart widget
-│   ├── bot/           # Strategy drawer (?strategy= param)
-│   ├── institutions/  # Institutional intelligence (US 13F / India / UAE)
-│   ├── alerts/        # Alert management + Telegram/WhatsApp setup wizards
-│   └── settings/      # App settings
-├── api/               # Server-side only (stripped in static build)
-│   ├── quotes/        # Polygon.io batch quotes
-│   ├── candles/       # OHLCV candle data
-│   ├── market-status/ # NYSE open/closed
-│   ├── ticker/        # Single ticker info
-│   ├── agent/chat/    # AlphaBot Groq streaming endpoint
-│   └── webhook/tradingview/ # TradingView alert webhook
-└── layout.tsx         # Root layout with font variables
+├── (app)/                  # Authenticated shell — Sidebar + Header + TickerBar
+│   ├── dashboard/          # Command center: KPIs, equity curve, signal feed, agent log
+│   ├── signals/            # BUY/SELL/HOLD/EXIT table + "Run Brain" + per-row Trade button
+│   ├── portfolio/          # Positions + animated equity SVG (paper-trade aware)
+│   ├── agent/              # Terminal brain log, Ask AlphaBot streaming chat
+│   ├── risk/               # 0–100 gauge, 6-dim radar, ranked risk table
+│   ├── strategies/         # 10 strategy cards vs S&P500
+│   ├── traders/            # US/UAE/India top traders — holding chips open a prefilled trade
+│   ├── intel/              # Live Finnhub news + economic calendar
+│   ├── us/ uae/ india/     # Per-market pages with live quotes
+│   ├── crypto/             # Crypto markets (Binance)
+│   ├── markets/            # Multi-market live quotes (Binance-style)
+│   ├── fear-greed/         # Per-market sentiment + strategy playbook
+│   ├── charts/             # TradingView chart widget
+│   ├── bot/                # Strategy drawer (?strategy= param)
+│   ├── institutions/       # US 13F / India superinvestors / UAE — each holding copy-tradeable
+│   ├── alerts/             # Alert management + Telegram/WhatsApp setup wizards
+│   ├── audit/              # Data-transparency dashboard: API health + feature truth map
+│   ├── deploy-checklist/   # 6-phase build plan with progress tracking
+│   └── settings/
+├── api/                    # Server-side only — REMOVED by CI before static export
+│   ├── quotes/ candles/ market-status/ ticker/
+│   ├── morning-brain/      # AI signal generation pipeline
+│   ├── signals/            # Reads ACTIVE signals from Supabase
+│   ├── paper-trades/       # GET/POST/PATCH paper positions
+│   ├── agent/chat/         # AlphaBot Groq streaming endpoint
+│   └── webhook/tradingview/
+└── layout.tsx
 ```
 
 ### Key Libraries / Files
 | File | Purpose |
 |------|---------|
-| `src/lib/polygon.ts` | Polygon.io API client (free tier safe) |
+| `src/lib/technicals.ts` | Pure TS RSI(14), MACD(12,26,9), EMA(9/21/50/200), ATR(14) — no deps |
+| `src/lib/market-data.ts` | Unified price client → `market-prices` Edge Function, 30s cache |
+| `src/lib/signals.ts` | Signal types + helpers for the live signals feed |
+| `src/lib/finnhub-ws.ts` | Finnhub WebSocket client for real-time US trades |
+| `src/lib/binance.ts` | Binance REST client (no key needed) |
+| `src/lib/twelvedata.ts` | Twelve Data client + India NSE / UAE DFM symbol maps |
+| `src/lib/polygon.ts` | Polygon.io client (free tier, daily OHLCV) |
 | `src/lib/db.ts` | Supabase-first fetch layer, falls back to static data |
-| `src/lib/supabase.ts` | Supabase client + service role helper |
-| `src/lib/notifications.ts` | Telegram + WhatsApp notification service (AES-256-GCM encrypted credentials) |
-| `src/lib/alerts.ts` | Alert CRUD (localStorage), condition types, pending alert consumption |
-| `src/lib/strategies.ts` | 10 world-class strategy definitions + DRAWDOWN_CSV |
-| `src/lib/institutions.ts` | US 13F filings, India superinvestors, UAE stocks, sovereign funds |
+| `src/lib/supabase.ts` | Supabase client + service-role helper |
+| `src/lib/notifications.ts` | Telegram + WhatsApp service (AES-256-GCM encrypted credentials) |
+| `src/lib/alerts.ts` | Alert CRUD (localStorage) + pending-alert handoff |
+| `src/lib/strategies.ts` | 10 strategy definitions + DRAWDOWN_CSV |
+| `src/lib/institutions.ts` | US 13F, India superinvestors, UAE stocks, sovereign funds |
 | `src/lib/constants.ts` | MOCK_PORTFOLIO, symbol lists, market labels |
-| `src/hooks/useMarketData.ts` | Client-side Polygon quote polling hook |
+| `src/hooks/usePaperPortfolio.ts` | Polls `/api/paper-trades` every 30s, live P&L, open/close |
+| `src/hooks/useLivePrices.ts` | Unified live price hook, 30s poll, flash detection |
+| `src/hooks/useMarketData.ts` | Legacy Polygon polling hook |
+| `src/components/ui/TradeModal.tsx` | Prefillable paper-trade modal (symbol/price/SL/TP/side) |
 | `src/store/useStore.ts` | Zustand store (activeMarket, selectedSymbol, sidebarCollapsed) |
+
+---
+
+## Morning Brain — AI Signal Generation
+
+`POST /api/morning-brain` (triggered by "Run Brain" on the Signals page):
+1. Fetch ~90 days OHLCV — Polygon (US/crypto), Yahoo Finance (India `.NS` / UAE `.AE`)
+2. Compute RSI, MACD, EMA, ATR in pure TypeScript (`src/lib/technicals.ts`)
+3. Fetch last 3 days of Finnhub news per symbol
+4. Call AI per symbol → structured JSON signal
+5. Write to `signals_generated`; **if the DB is unreachable the signals are still returned**
+   with a `warning` field rather than being discarded (added 2026-08-22)
+6. Signals page switches from "DEMO DATA" to "● AI LIVE" when the DB has rows
+
+Confidence formula: `0.30×Technical + 0.25×News + 0.20×SmartMoney + 0.15×InverseRisk + 0.10×Regime ≥ 70`
+
+Response shape: `{ success, persisted, warning?, count, signals[], symbolsAnalyzed, model }`
 
 ---
 
 ## Supabase Database
 
-### Tables (Migration 001 + 002)
-`us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds`, `market_signals`
+### Migrations
+| File | Purpose |
+|------|---------|
+| `supabase/001_alphaos_schema.sql` | Core tables |
+| `supabase/002_seed_data.sql` | Seed data |
+| `supabase/003_intelligence_layer.sql` | 6 intelligence tables + paper-trading tables |
+| `supabase/004_seed_signals.sql` | Seed signals |
+| `supabase/005_alpha_signals.sql` | `alpha_signals` for the live signals feed |
 
-### Migration 003 — Intelligence Layer (SQL written, needs to be run)
-| Table | Key columns |
-|-------|-------------|
-| `signals_generated` | ticker, exchange, market, action (BUY/SELL/HOLD/EXIT), entry_price, stop_loss, target_1, target_2, rr_ratio, confidence, rationale |
-| `news_articles` | title, tickers[], sentiment (-1 to +1), impact (HIGH/MED/LOW), Claude summary |
-| `economic_events` | event_name, market, impact, forecast, actual, previous |
-| `block_deals` | ticker, exchange, buyer, seller, quantity, price, deal_type |
-| `institutional_holdings` | institution, ticker, shares_held, value_usd, pct_portfolio, change_shares |
-| `company_info` | ticker+exchange PK, sector, industry, market_cap, pe_ratio, eps, currency |
+All must be re-run against a new project.
 
-### SQL Files
-| File | Status |
-|------|--------|
-| `supabase/001_alphaos_schema.sql` | Run |
-| `supabase/002_seed_data.sql` | Run |
-| `supabase/003_intelligence_layer.sql` | **NOT RUN** — 6 intelligence tables |
-| `supabase/004_seed_signals.sql` | **NOT RUN** — seed signals for live page |
+### Tables
+`us_institutions`, `india_superinvestors`, `uae_dividend_stocks`, `strategies`,
+`strategy_exact_params`, `uae_sovereign_funds`, `waha_funds`, `market_signals`,
+`signals_generated`, `alpha_signals`, `news_articles`, `economic_events`, `block_deals`,
+`institutional_holdings`, `company_info`, `paper_portfolios`, `paper_positions`, `paper_trade_log`
 
 ### RLS Policy
 - anon: SELECT on all tables (dashboard reads)
 - service_role: full write (morning brain pipeline, webhooks)
 
+### Edge Functions
+| Function | Purpose | Status |
+|----------|---------|--------|
+| `market-prices` | Price proxy: Finnhub + Yahoo + Binance | ❌ dead with the project |
+| `send-notification` | Telegram + WhatsApp | ❌ dead with the project |
+| `alphabot-chat` | Streaming chat (unused — client-side Groq is used) | ❌ dead with the project |
+| `agent-research` | Research agents, Groq fallback chain | ❌ dead with the project |
+
 ---
 
 ## Notification System (Telegram + WhatsApp)
 
-### How It Works
-Both channels route through a single Supabase Edge Function at `supabase/functions/send-notification/index.ts`.
+Both channels route through `supabase/functions/send-notification/index.ts`.
 
-**Edge Function URL:** `https://mxwrfiihmfmlhtmynpal.supabase.co/functions/v1/send-notification`
+### WhatsApp implementation history — do not revert
+1. **Browser-direct fetch** — CallMeBot sends no CORS headers; response unreadable. Unreliable.
+2. **`mode: 'no-cors'`** — opaque response, fire-and-pray.
+3. **Current: route through the Edge Function.** Server-to-server, reads CallMeBot's real
+   response, surfaces real errors. **This is correct — do not change.**
 
-**Status: NOT DEPLOYED (returns 404). Must deploy with `emiratesprice@gmail.com` account.**
-
-### Telegram
-- Bot: @AlphaOSAlerts_bot
-- Bot token: stored in Supabase secrets (NEVER in client bundle)
-- Client sends POST to Edge Function with `{ channel: "telegram", chatId, message }`
-- Edge Function calls `api.telegram.org/bot{token}/sendMessage`
-- **To set token:** `supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref mxwrfiihmfmlhtmynpal`
-
-### WhatsApp (CallMeBot)
-- Free API: `api.callmebot.com/whatsapp.php`
-- User's phone + API key encrypted with AES-256-GCM before localStorage
-- Client sends POST to Edge Function with `{ channel: "whatsapp", phone, apiKey, message }`
-- Edge Function calls CallMeBot server-to-server (no CORS issue)
-- CallMeBot activation: user must save +34 644 59 81 98 and send "I allow callmebot to send me messages on WhatsApp"
-
-### Previous Attempts (for context)
-1. **Browser-direct fetch** — CallMeBot has no CORS headers. Simple GET is sent by browser but response is blocked. Tried catching CORS TypeError and returning `{ fired: true }`. Problem: unreliable, can't read actual response, timeout errors misclassified.
-2. **mode: 'no-cors'** — browser sends request, but response is opaque (can't read status). Still fire-and-pray.
-3. **Current approach (2026-05-29):** Route through Edge Function. Server-to-server call reads CallMeBot's actual response. Real error messages surfaced to user.
-
-### Security Model
-- Credentials encrypted with AES-256-GCM + PBKDF2 from browser fingerprint
-- Different device/browser = can't decrypt (by design)
-- Edge Function rate limit: 10 notifications/hour per identity
-- Message sanitisation: 800 char cap, HTML stripped
-
-### Deploy Commands
-```bash
-# Must be logged in as emiratesprice@gmail.com
-supabase login
-supabase functions deploy send-notification --project-ref mxwrfiihmfmlhtmynpal
-
-# For Telegram (WhatsApp doesn't need server secrets — key comes from user):
-supabase secrets set TELEGRAM_BOT_TOKEN=<your_bot_token> --project-ref mxwrfiihmfmlhtmynpal
-```
-
----
-
-## Alerts System
-
-### Client-Side (`src/lib/alerts.ts`)
-- CRUD operations stored in localStorage
-- Alert conditions: `price_above`, `price_below`, `rsi_above`, `drawdown_above`
-- Channels: Email, Telegram, WhatsApp
-- Common symbols: BTCUSDT, ETHUSDT, SOLUSDT, NVDA, AAPL, MSFT, SPY, TSLA, HDFCBANK, EMAAR, FAB
-- Pending alert system: signals page can queue alerts, alerts page consumes them
-
-### UI (`src/app/(app)/alerts/page.tsx`)
-- Alert list with toggle/delete
-- New Alert modal with symbol autocomplete
-- Telegram setup modal (enter chat ID → test → save)
-- WhatsApp 6-step wizard (add contact → activate → get key → enter details → send test → confirm)
-
----
-
-## Data Sources
-
-### Polygon.io (Free Tier)
-- **Endpoint:** `/v2/aggs/ticker/{symbol}/range/1/day/{from}/{to}`
-- **NOT available:** Snapshot endpoint (paid, returns 403)
-- **API Key:** `POLYGON_API_KEY` in `.env.local` — server-side ONLY
-- **Markets:** US equities + crypto (BTCUSDT, ETHUSDT via X: prefix)
-
-### Finnhub
-- **Endpoint:** Live financial news for Market Intel page
-- **API Key:** `NEXT_PUBLIC_FINNHUB_API_KEY` — client-side safe
-- **Free tier:** No credit card required
-
-### Groq
-- **Model:** `llama-3.3-70b-versatile`
-- **Endpoint:** `/api/agent/chat` (server-side streaming) + `NEXT_PUBLIC_GROQ_API_KEY` (client-side for GitHub Pages)
-- **Groq supports CORS with allow-origin: ***, so AlphaBot works on static export
+- CallMeBot activation: save +34 644 59 81 98, send "I allow callmebot to send me messages on WhatsApp"
+- Credentials encrypted AES-256-GCM + PBKDF2 from browser fingerprint (different device = can't decrypt, by design)
+- Edge Function rate limit: 10 notifications/hour per identity; messages capped at 800 chars, HTML stripped
 
 ---
 
 ## GitHub Pages Deployment
 
-### How it works
 1. Push to `main` → GitHub Actions triggers
-2. Workflow installs deps, **removes `src/app/api/`** (server-only, incompatible with static export)
+2. Workflow installs deps, **removes `src/app/api/`** (incompatible with static export)
 3. `npm run build` produces `out/` via `output: 'export'`
-4. `out/` is deployed to GitHub Pages
-5. Live at `https://vinayak682.github.io/alphaos/` within ~60s
+4. `out/` deploys to GitHub Pages, live in ~60s
 
-### next.config.ts settings
-```typescript
-output: "export"        // Static HTML/CSS/JS only (production only)
-basePath: "/alphaos"    // GitHub project page path (production only)
-trailingSlash: true     // GitHub Pages needs index.html per route
-images: { unoptimized: true }  // No image server in static mode
+`next.config.ts` applies `output: "export"`, `basePath: "/alphaos"`, `trailingSlash` **only in
+production** — dev keeps API routes working locally.
+
+### Reproducing the CI build locally
+`npm run build` fails in-repo because API routes can't be statically exported. Mirror CI instead:
+
+```bash
+rsync -a --exclude node_modules --exclude .next --exclude out --exclude .git ~/alphaos-dev/ /tmp/ci/
+cp -Rl ~/alphaos-dev/node_modules /tmp/ci/node_modules   # hard links; a symlink panics Turbopack
+rm -rf /tmp/ci/src/app/api
+cd /tmp/ci && ./node_modules/.bin/next build
 ```
-Dev mode has NO basePath/output:export so `/api/*` routes work locally.
 
-### Fallback behavior on GitHub Pages
-- API routes removed → app falls back to static data from `src/lib/strategies.ts`, `src/lib/institutions.ts`
-- Supabase reads work (client-side via anon key)
-- AlphaBot works (Groq supports CORS via `NEXT_PUBLIC_GROQ_API_KEY`)
-- Polygon.io data requires local `npm run dev`
-
----
-
-## Static Data
-
-### World-Class Strategies (10 total)
-| Strategy | Style | Market | Trader Inspiration |
-|----------|-------|--------|--------------------|
-| Golden Cross Momentum | SWING | US | Mark Minervini / VCP |
-| FVG Hunter | DAY | US, CRYPTO | ICT / Smart Money |
-| Crypto Macro Quant | MACRO | CRYPTO | Raoul Pal framework |
-| Nifty Options Seller | SCALP | INDIA | NSE premium selling |
-| UAE Value Compounder | POSITION | UAE | EMAAR/FAB value |
-| FTSE Macro Rotation | MACRO | US, UK | Paul Tudor Jones |
-| CAN SLIM Pro | POSITION | US | William O'Neil |
-| FII Flow Rider | SWING | INDIA | FII/DII flows |
-| StatArb Pairs | QUANT | US, CRYPTO | Two Sigma approach |
-| VWAP Intraday | DAY | US | VWAP + volume profile |
-
-### Institutional Intelligence
-- **US 13F:** 9 funds — Bridgewater, Citadel, D.E. Shaw, Two Sigma, Millennium, Renaissance, Tiger Global, Pershing Square, Paulson
-- **India:** Rakesh Jhunjhunwala, Ashish Kedia, Dolly Khanna, Mohnish Pabrai
-- **UAE:** 15 ADX/DFM stocks — EMAAR, FAB, ADNOCGAS, EMIRATESNBD, DEWA, etc.
-- **Sovereign Funds:** ADIA ($1T+), Mubadala ($300B+), ADQ ($110B), Waha Capital
-
----
-
-## Morning Brain Architecture (Planned, not yet built)
-Daily 08:00 Asia/Dubai:
-1. Parallel fetch: Polygon.io (US), Twelve Data (India/UAE), Marketaux/Finnhub (news/earnings)
-2. Technical indicators: RSI(14), MACD(12,26,9), Bollinger(20,2), ATR(14), EMA(9,21,50,200), VWAP
-3. Smart money sync (weekly cache): 13F/NSE bulk deals/DFM major tx
-4. Claude loop per ticker → `{ action, entry, SL, T1, T2, RR, confidence 0-100, rationale }`
-5. Confidence filter: `0.30×Technical + 0.25×News + 0.20×SmartMoney + 0.15×InverseRisk + 0.10×Regime ≥ 70`
-6. Write to `signals_generated` + Telegram morning brief
-
-TradingView Webhook: `POST /api/webhook/tradingview` → validate → Claude quick-analysis → confidence gate → paper trade.
+Last verified 2026-08-22: ✅ 23 routes exported, including `/audit` and `/deploy-checklist`.
 
 ---
 
@@ -294,37 +276,42 @@ TradingView Webhook: `POST /api/webhook/tradingview` → validate → Claude qui
 
 | Date | What was built |
 |------|---------------|
-| 2026-05-20 | Initial Next.js + Polygon.io + FastAPI backend |
-| 2026-05-21 | Institutional intelligence, trader strategies, font/button fixes |
-| 2026-05-22 | GitHub Pages deployment, Supabase integration |
-| 2026-05-23 | Full markets redesign, India/UAE data fix, Binance-style UI |
-| 2026-05-24 | 8 new screens + redesigned sidebar |
-| 2026-05-25 | Portfolio page + Dashboard refresh |
+| 2026-05-20 | Next.js scaffold + Polygon.io + FastAPI backend stub |
+| 2026-05-21 | Institutional intelligence, 10 strategies, font/button fixes |
+| 2026-05-22 | GitHub Pages pipeline, Supabase integration, migrations 001+002 |
+| 2026-05-23 | Markets redesign (Binance-style), India/UAE data fix |
+| 2026-05-24 | 8 new screens + sidebar redesign |
+| 2026-05-25 | Portfolio page + dashboard refresh |
 | 2026-05-26 | Migration 003 intelligence layer SQL |
-| 2026-05-27 | AlphaBot chat (Groq streaming), TradingView webhook, signals wiring, Finnhub news |
-| 2026-05-28 | Fear & Greed Index, Crypto Markets page, Alerts modal, Telegram + WhatsApp notifications (AES-256-GCM), Edge Function written |
-| 2026-05-29 | WhatsApp fix: rewired from browser-direct to Edge Function server-to-server. **Edge Function still needs deploy.** |
+| 2026-05-27 | AlphaBot streaming chat, TradingView webhook, Finnhub news |
+| 2026-05-28 | Fear & Greed, Crypto page, Alerts modal, Telegram + WhatsApp (AES-256-GCM) |
+| 2026-05-29 | WhatsApp rewired to Edge Function; `market-prices` Edge Function; live prices across all markets |
+| 2026-05-29 | Paper trading full stack, copy trading, Morning Brain, Audit page, Deploy Checklist |
+| 2026-06 | Google Analytics; agentic research agents + live signals + signal breakdown tab |
+| **2026-08-22** | **Restore session** — see below |
 
----
+### 2026-08-22 — Restore session
+Recovered ~1,900 lines of work that were stranded, uncommitted, in the stale
+`~/Projects/alphaos/frontend` clone and never reached `main`:
 
-## Remaining Build (Priority Order)
-1. **Deploy Edge Function** `send-notification` (login as `emiratesprice@gmail.com`)
-2. Set `TELEGRAM_BOT_TOKEN` in Supabase secrets
-3. Run `003_intelligence_layer.sql` in Supabase dashboard
-4. Run `004_seed_signals.sql` for live signals
-5. Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local`
-6. Morning brain scheduler (Python APScheduler, 08:00 Asia/Dubai)
-7. Wire data fetchers: Polygon.io, Twelve Data, Marketaux, Finnhub
-8. Wire `/portfolio` and `/risk` to real Supabase data
+- `src/lib/technicals.ts`, `src/hooks/usePaperPortfolio.ts`, `src/components/ui/TradeModal.tsx`
+- `/api/morning-brain`, `/api/paper-trades`, `/api/signals`
+- `/audit` and `/deploy-checklist` pages (+ sidebar entries)
+- Copy-trading wiring on Signals, Traders, Institutions, Portfolio, Dashboard
+- Header switched from `MOCK_PORTFOLIO` to the live `usePaperPortfolio` stats
+
+Repairs made during the restore:
+- Migrated every Groq call site off decommissioned models → `openai/gpt-oss-120b`
+- Fixed Morning Brain producing 0 signals (gpt-oss reasoning tokens truncating the JSON)
+- Made Morning Brain return generated signals instead of a 500 when Supabase is unreachable
+- Restored `.env.local` (it existed only in the stale clone)
 
 ---
 
 ## Local Development
 ```bash
-cd /Users/vinayakbhadani/Projects/alphaos/frontend
-npm run dev          # http://localhost:3000
-# API routes work locally — Polygon.io + Groq + webhooks enabled
-# Supabase reads from mxwrfiihmfmlhtmynpal project
+cd /Users/vinayakbhadani/alphaos-dev
+npm run dev          # http://localhost:3000 — API routes + all keys active
 ```
 
 ## Deploy

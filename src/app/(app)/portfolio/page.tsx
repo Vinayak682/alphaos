@@ -2,11 +2,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { MOCK_PORTFOLIO } from "@/lib/constants";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
-import { TrendingUp, TrendingDown, DollarSign, Activity, BarChart2, Wallet } from "lucide-react";
-
-const p = MOCK_PORTFOLIO;
+import TradeModal from "@/components/ui/TradeModal";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
+import { TrendingUp, TrendingDown, DollarSign, Activity, BarChart2, Wallet, Plus, RefreshCw } from "lucide-react";
 
 const POSITIONS = [
   { symbol: "NVDA",        name: "NVIDIA Corp",              market: "US",     side: "LONG",  qty: 12,    entry: 845.20,    current: 891.20,    currency: "$",  risk: 28 },
@@ -98,29 +97,68 @@ type MarketTab = "ALL" | "US" | "INDIA" | "UAE" | "CRYPTO";
 
 export default function PortfolioPage() {
   const [tab, setTab] = useState<MarketTab>("ALL");
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const { stats, positions: livePositions, loading, refresh, openTrade, closeTrade } = usePaperPortfolio();
 
-  const filtered = tab === "ALL" ? POSITIONS : POSITIONS.filter((pos) => pos.market === tab);
+  // Merge live positions over static mock — live takes priority if available
+  const displayPositions = livePositions.length > 0
+    ? livePositions.map((p) => ({
+        symbol: p.symbol,
+        name: p.name,
+        market: p.market as "US" | "INDIA" | "UAE" | "CRYPTO",
+        side: p.side,
+        qty: p.quantity,
+        entry: p.entry_price,
+        current: p.current_price ?? p.entry_price,
+        currency: p.currency,
+        risk: 35,
+        id: p.id,
+      }))
+    : POSITIONS.map((p) => ({ ...p, id: undefined as string | undefined }));
 
-  const totalPnl = POSITIONS.reduce((acc, pos) => acc + computePnl(pos).raw, 0);
-  const gainCount = POSITIONS.filter((pos) => computePnl(pos).isGain).length;
+  const filtered = tab === "ALL" ? displayPositions : displayPositions.filter((pos) => pos.market === tab);
+  const p = stats;
+
+  const totalPnl = displayPositions.reduce((acc, pos) => acc + computePnl(pos).raw, 0);
+  const gainCount = displayPositions.filter((pos) => computePnl(pos).isGain).length;
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
+      <TradeModal
+        open={tradeModalOpen}
+        onClose={() => setTradeModalOpen(false)}
+        onTrade={openTrade}
+        cashBalance={p.cashBalance}
+      />
+
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h1 className="font-heading text-xl font-bold">Portfolio</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {POSITIONS.length} positions · Last update 08:04 UAE · {gainCount} gaining / {POSITIONS.length - gainCount} losing
-        </p>
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+        className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-xl font-bold">Portfolio</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {displayPositions.length} positions · {gainCount} gaining / {displayPositions.length - gainCount} losing
+            {livePositions.length > 0 && <span className="text-primary ml-2">● LIVE</span>}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={refresh} className="p-2 rounded-lg hover:bg-muted/40 transition-colors" title="Refresh">
+            <RefreshCw className={cn("w-3.5 h-3.5 text-muted-foreground", loading && "animate-spin")} />
+          </button>
+          <button onClick={() => setTradeModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-black rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> New Trade
+          </button>
+        </div>
       </motion.div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Total Value",    value: p.totalValue, prefix: "$",  suffix: "",  icon: Wallet,     cls: "text-foreground", iconCls: "text-blue-400",   decimals: 2 },
-          { label: "Day P&L",        value: p.dayPnl,     prefix: "+$", suffix: "",  icon: TrendingUp,  cls: "gain",            iconCls: "text-primary",    decimals: 2 },
-          { label: "Total P&L",      value: p.totalPnl,   prefix: "+$", suffix: "",  icon: Activity,   cls: "gain",            iconCls: "text-green-400",  decimals: 2 },
-          { label: "Cash Reserve",   value: p.cashBalance, prefix: "$", suffix: "",  icon: DollarSign, cls: "text-foreground", iconCls: "text-yellow-400", decimals: 2 },
+          { label: "Total Value",    value: p.totalValue,   prefix: "$",  suffix: "", icon: Wallet,     cls: "text-foreground", iconCls: "text-blue-400",   decimals: 2 },
+          { label: "Day P&L",        value: Math.abs(p.dayPnl), prefix: p.dayPnl >= 0 ? "+$" : "-$", suffix: "", icon: TrendingUp, cls: p.dayPnl >= 0 ? "gain" : "loss", iconCls: "text-primary", decimals: 2 },
+          { label: "Unrealised P&L", value: Math.abs(p.totalPnl), prefix: p.totalPnl >= 0 ? "+$" : "-$", suffix: "", icon: Activity, cls: p.totalPnl >= 0 ? "gain" : "loss", iconCls: "text-green-400", decimals: 2 },
+          { label: "Cash Reserve",   value: p.cashBalance,  prefix: "$", suffix: "",  icon: DollarSign, cls: "text-foreground", iconCls: "text-yellow-400", decimals: 2 },
         ].map((card, i) => {
           const Icon = card.icon;
           return (
@@ -299,19 +337,29 @@ export default function PortfolioPage() {
                       {isGain ? "+" : ""}{pct.toFixed(2)}%
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-10 h-1 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${pos.risk}%`,
-                              background: pos.risk >= 60 ? "#FF3060" : pos.risk >= 40 ? "#F59E0B" : "#00FF88",
-                            }}
-                          />
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-10 h-1 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${pos.risk}%`,
+                                background: pos.risk >= 60 ? "#FF3060" : pos.risk >= 40 ? "#F59E0B" : "#00FF88",
+                              }}
+                            />
+                          </div>
+                          <span className={cn("mono text-xs", pos.risk >= 60 ? "loss" : pos.risk >= 40 ? "text-yellow-400" : "gain")}>
+                            {pos.risk}
+                          </span>
                         </div>
-                        <span className={cn("mono text-xs", pos.risk >= 60 ? "loss" : pos.risk >= 40 ? "text-yellow-400" : "gain")}>
-                          {pos.risk}
-                        </span>
+                        {pos.id && (
+                          <button
+                            onClick={() => closeTrade(pos.id!, pos.current)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] px-2 py-0.5 rounded bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 font-semibold whitespace-nowrap"
+                          >
+                            Close
+                          </button>
+                        )}
                       </div>
                     </td>
                   </motion.tr>

@@ -5,13 +5,15 @@ import { cn } from "@/lib/utils";
 import {
   Building2, TrendingUp, TrendingDown, ChevronRight, Globe,
   Shield, DollarSign, BarChart3, Star, Users, Landmark,
-  ArrowUpRight, ArrowDownRight, Info,
+  ArrowUpRight, ArrowDownRight, Info, Copy,
 } from "lucide-react";
 import {
   US_INSTITUTIONS, INDIA_SUPERINVESTORS, UAE_DIVIDEND_STOCKS,
   STRATEGY_EXACT_PARAMS, WAHA_FUNDS, UAE_SOVEREIGN_FUNDS,
   type USInstitution,
 } from "@/lib/institutions";
+import TradeModal from "@/components/ui/TradeModal";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 
 // ─── Color map ─────────────────────────────────────────────────────────────────
 const CLR: Record<string, { text: string; bg: string; border: string }> = {
@@ -146,7 +148,7 @@ function USCard({ inst, index, onClick }: { inst: USInstitution; index: number; 
 }
 
 // ─── Institution detail panel ──────────────────────────────────────────────────
-function USDetail({ inst, onClose }: { inst: USInstitution; onClose: () => void }) {
+function USDetail({ inst, onClose, onCopy }: { inst: USInstitution; onClose: () => void; onCopy: (symbol: string, market: string) => void }) {
   const clr = c(inst.color);
   return (
     <AnimatePresence>
@@ -197,9 +199,17 @@ function USDetail({ inst, onClose }: { inst: USInstitution; onClose: () => void 
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Top Holdings</h3>
             <div className="space-y-2">
               {inst.topHoldings.map(h => (
-                <div key={h.ticker} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2">
+                <div key={h.ticker} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2 group">
                   <div><div className="font-mono font-semibold text-sm">{h.ticker}</div><div className="text-[10px] text-muted-foreground">{h.name}</div></div>
-                  <div className="text-right"><div className="font-mono font-bold text-sm">${h.valueB.toFixed(2)}B</div><div className={cn("text-[10px] font-medium", clr.text)}>{h.pct.toFixed(2)}%</div></div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right"><div className="font-mono font-bold text-sm">${h.valueB.toFixed(2)}B</div><div className={cn("text-[10px] font-medium", clr.text)}>{h.pct.toFixed(2)}%</div></div>
+                    <button
+                      onClick={() => onCopy(h.ticker, "US")}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded bg-primary/15 text-primary border border-primary/30 text-[10px] font-bold hover:bg-primary/25"
+                    >
+                      <Copy className="w-2.5 h-2.5" /> Copy
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -212,9 +222,15 @@ function USDetail({ inst, onClose }: { inst: USInstitution; onClose: () => void 
                   <h3 className="text-xs font-medium text-emerald-400 uppercase tracking-wider mb-2">↑ Recent Buys</h3>
                   <div className="space-y-1">
                     {inst.recentBuys.map(b => (
-                      <div key={b.ticker} className="flex justify-between text-xs bg-emerald-500/10 rounded px-2 py-1.5 border border-emerald-500/20">
+                      <div key={b.ticker} className="flex justify-between text-xs bg-emerald-500/10 rounded px-2 py-1.5 border border-emerald-500/20 group">
                         <span className="font-mono font-medium">{b.ticker}</span>
-                        <span className="text-emerald-400 font-mono">+{b.changePct.toFixed(2)}%</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-400 font-mono">+{b.changePct.toFixed(2)}%</span>
+                          <button
+                            onClick={() => onCopy(b.ticker, "US")}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold"
+                          >Copy</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -247,6 +263,8 @@ type TabType = "us" | "india" | "uae" | "strategies";
 export default function InstitutionsPage() {
   const [tab, setTab] = useState<TabType>("us");
   const [selected, setSelected] = useState<USInstitution | null>(null);
+  const [copyTicker, setCopyTicker] = useState<{ symbol: string; market: string } | null>(null);
+  const { stats, openTrade } = usePaperPortfolio();
 
   const totalUS  = US_INSTITUTIONS.reduce((a, i) => a + i.portfolioValueB, 0);
   const totalINR = INDIA_SUPERINVESTORS.reduce((a, i) => a + i.portfolioINRCr, 0);
@@ -254,6 +272,17 @@ export default function InstitutionsPage() {
 
   return (
     <>
+      {copyTicker && (
+        <TradeModal
+          open={!!copyTicker}
+          onClose={() => setCopyTicker(null)}
+          onTrade={openTrade}
+          cashBalance={stats.cashBalance}
+          prefillSymbol={copyTicker.symbol}
+          prefillMarket={copyTicker.market}
+          prefillSide="LONG"
+        />
+      )}
       <div className="p-4 space-y-4 h-full overflow-auto">
 
         {/* Header */}
@@ -355,7 +384,7 @@ export default function InstitutionsPage() {
                     {/* Holdings */}
                     <div className="space-y-1.5">
                       {inv.topHoldings.slice(0, 3).map((h, j) => (
-                        <div key={h.ticker} className="flex items-center justify-between">
+                        <div key={h.ticker} className="flex items-center justify-between group">
                           <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-current opacity-60" style={{ color: [clr.text.replace("text-","")][0] }} />
                             <span className="font-mono text-xs font-medium">{h.ticker}</span>
@@ -364,6 +393,10 @@ export default function InstitutionsPage() {
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-xs font-mono">₹{(h.valueCr / 100).toFixed(0)}Cr</span>
                             <span className={cn("text-[10px] font-bold", clr.text)}>{h.pct.toFixed(1)}%</span>
+                            <button
+                              onClick={() => setCopyTicker({ symbol: h.ticker, market: "INDIA" })}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary font-bold"
+                            >Copy</button>
                           </div>
                         </div>
                       ))}
@@ -455,6 +488,14 @@ export default function InstitutionsPage() {
                           </td>
                           <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{s.avgDailyVolShares.toFixed(2)}M</td>
                           <td className="px-4 py-2.5 hidden lg:table-cell text-muted-foreground text-[10px]">{s.sovereignHolder}</td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => setCopyTicker({ symbol: s.ticker, market: "UAE" })}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30 text-[9px] font-bold hover:bg-primary/25 transition-colors"
+                            >
+                              <Copy className="w-2.5 h-2.5" /> Copy
+                            </button>
+                          </td>
                         </motion.tr>
                       );
                     })}
@@ -529,7 +570,7 @@ export default function InstitutionsPage() {
       </div>
 
       {/* Detail panel */}
-      {selected && <USDetail inst={selected} onClose={() => setSelected(null)} />}
+      {selected && <USDetail inst={selected} onClose={() => setSelected(null)} onCopy={(symbol, market) => setCopyTicker({ symbol, market })} />}
     </>
   );
 }

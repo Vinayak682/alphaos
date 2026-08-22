@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Zap, Briefcase, Settings, ChevronRight,
   Bot, ShieldAlert, BarChart2, Users, Newspaper,
   TrendingUp, Flag, Globe2, Bell, Building2, LineChart, Gauge, Bitcoin,
+  Activity, ClipboardList,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -45,6 +46,8 @@ const NAV_SECTIONS = [
       { href: "/markets",      icon: LineChart,  label: "Live Quotes" },
       { href: "/institutions", icon: Building2,  label: "Institutions" },
       { href: "/alerts",       icon: Bell,       label: "Alerts" },
+      { href: "/audit",            icon: Activity,       label: "Audit" },
+      { href: "/deploy-checklist", icon: ClipboardList,  label: "Build Plan" },
     ],
   },
 ];

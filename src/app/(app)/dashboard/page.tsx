@@ -1,16 +1,16 @@
 "use client";
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { Briefcase, TrendingUp, Activity, Target, ArrowUpRight } from "lucide-react";
 import StatCard from "@/components/dashboard/StatCard";
 import SignalFeed from "@/components/dashboard/SignalFeed";
 import OpenPositions from "@/components/dashboard/OpenPositions";
 import BotPerformance from "@/components/dashboard/BotPerformance";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
-import { MOCK_PORTFOLIO } from "@/lib/constants";
+import TradeModal from "@/components/ui/TradeModal";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 import { formatPct } from "@/lib/utils";
 import Link from "next/link";
-
-const p = MOCK_PORTFOLIO;
 
 // 7-day equity history for the mini portfolio chart
 const EQUITY_HISTORY = [261200, 268400, 271800, 265300, 278900, 281200, 284100, 287450];
@@ -55,8 +55,18 @@ function PortfolioSparkline() {
 }
 
 export default function DashboardPage() {
+  const { stats, openTrade } = usePaperPortfolio();
+  const p = stats;
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
+      <TradeModal
+        open={tradeModalOpen}
+        onClose={() => setTradeModalOpen(false)}
+        onTrade={openTrade}
+        cashBalance={p.cashBalance}
+      />
 
       {/* Hero portfolio banner */}
       <motion.div
@@ -119,6 +129,10 @@ export default function DashboardPage() {
 
         {/* Quick nav pills */}
         <div className="relative flex items-center gap-2 mt-4 flex-wrap">
+          <button onClick={() => setTradeModalOpen(true)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-primary text-black font-bold hover:bg-primary/90 transition-all">
+            + New Trade
+          </button>
           {[
             { href: "/portfolio",  label: "Portfolio"    },
             { href: "/signals",    label: "Signals"      },

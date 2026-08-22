@@ -2,10 +2,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Users, TrendingUp, Award, BarChart2 } from "lucide-react";
+import { Users, TrendingUp, Award, BarChart2, Copy } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
+import TradeModal from "@/components/ui/TradeModal";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 
 const TRADERS: Record<string, {
   rank: number; name: string; firm: string; style: string;
@@ -62,12 +64,28 @@ const STYLE_CLR: Record<string, string> = {
   ACTIVIST: "text-red-400 bg-red-400/10",
 };
 
+// Market context for each trader tab
+const TAB_MARKET: Record<string, string> = { US: "US", UAE: "UAE", INDIA: "INDIA" };
+
 export default function TradersPage() {
   const [tab, setTab] = useState<"US" | "UAE" | "INDIA">("US");
+  const [copySymbol, setCopySymbol] = useState<string | null>(null);
+  const { stats, openTrade } = usePaperPortfolio();
   const traders = TRADERS[tab];
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
+      {copySymbol && (
+        <TradeModal
+          open={!!copySymbol}
+          onClose={() => setCopySymbol(null)}
+          onTrade={openTrade}
+          cashBalance={stats.cashBalance}
+          prefillSymbol={copySymbol}
+          prefillMarket={TAB_MARKET[tab]}
+          prefillSide="LONG"
+        />
+      )}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <h1 className="font-heading text-xl font-bold">Top Traders</h1>
         <p className="text-xs text-muted-foreground mt-0.5">Smart money intelligence · US 13F filings Q1 2026 · NSE bulk deals · DFM transactions</p>
@@ -142,8 +160,15 @@ export default function TradersPage() {
                     <td className="px-3 py-2.5 mono text-xs text-muted-foreground">{t.aum}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex gap-1 flex-wrap">
-                        {t.topHoldings.slice(0, 3).map((h) => (
-                          <span key={h} className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{h}</span>
+                        {t.topHoldings.slice(0, 3).filter(h => h !== "Undisclosed").map((h) => (
+                          <button
+                            key={h}
+                            onClick={() => setCopySymbol(h)}
+                            className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono hover:bg-primary/20 hover:text-primary transition-colors group"
+                          >
+                            {h}
+                            <Copy className="w-2 h-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
                         ))}
                       </div>
                     </td>

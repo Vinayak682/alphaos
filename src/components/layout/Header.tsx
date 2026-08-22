@@ -1,7 +1,8 @@
 "use client";
 import { cn, formatCurrency, formatPct } from "@/lib/utils";
-import { MOCK_PORTFOLIO, MARKET_LABELS, MARKETS } from "@/lib/constants";
+import { MARKET_LABELS, MARKETS } from "@/lib/constants";
 import { useStore } from "@/store/useStore";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 import { Bell, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,7 +13,7 @@ interface MarketStatus { market: string; open: boolean }
 
 export default function Header() {
   const { activeMarket, setActiveMarket } = useStore();
-  const p = MOCK_PORTFOLIO;
+  const { stats: p } = usePaperPortfolio();
   const [status, setStatus] = useState<MarketStatus | null>(null);
   const [alerts, setAlerts] = useState(3);
   const [searchValue, setSearchValue] = useState("");

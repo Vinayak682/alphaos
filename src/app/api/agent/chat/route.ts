@@ -1,9 +1,10 @@
-// AlphaBot chat — powered by Groq (llama-3.3-70b-versatile, free tier)
+// AlphaBot chat — powered by Groq (openai/gpt-oss-120b, free tier)
 // Get a free key at https://console.groq.com → set GROQ_API_KEY in .env.local
+// NOTE: llama-3.3-70b-versatile was decommissioned by Groq — do not reinstate it.
 import { NextRequest } from "next/server";
 
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL    = "llama-3.3-70b-versatile";
+const MODEL    = "openai/gpt-oss-120b";
 
 const SYSTEM_PROMPT = `You are AlphaBot, an elite AI trading analyst for AlphaOS — a multi-market AI trading platform covering US (NASDAQ/NYSE), India (NSE/BSE), UAE (DFM/ADX), and Crypto.
 

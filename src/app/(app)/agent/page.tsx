@@ -321,7 +321,7 @@ RESPONSE RULES:
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           stream: true,
           max_tokens: 600,
           temperature: 0.35,

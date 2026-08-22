@@ -1,5 +1,5 @@
 // AlphaBot — Supabase Edge Function
-// Calls Groq (llama-3.3-70b-versatile) and streams response
+// Calls Groq (openai/gpt-oss-120b) and streams response
 // Fetches today's live signals from alpha_signals table before building system prompt
 // Deploy: supabase functions deploy alphabot-chat --project-ref mxwrfiihmfmlhtmynpal
 // Set key: supabase secrets set GROQ_API_KEY=gsk_... --project-ref mxwrfiihmfmlhtmynpal
@@ -8,7 +8,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL    = "llama-3.3-70b-versatile";
+const MODEL    = "openai/gpt-oss-120b";
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",

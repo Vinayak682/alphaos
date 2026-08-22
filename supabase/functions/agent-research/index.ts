@@ -8,12 +8,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GROQ_API = "https://api.groq.com/openai/v1/chat/completions";
 
-// DeepSeek R1 on Groq: free tier, reasoning model, closest to Sonnet for synthesis
-// Fallback chain: R1 → Llama 4 Maverick → Llama 3.3 70B (all free on Groq)
+// Fallback chain, all free on Groq and all verified available 2026-08-22.
+// The previous chain (deepseek-r1-distill-llama-70b → llama-4-maverick →
+// llama-3.3-70b-versatile) was fully decommissioned by Groq — do not reinstate it.
 const MODELS = [
-  "deepseek-r1-distill-llama-70b",       // reasoning model, best for synthesis
-  "meta-llama/llama-4-maverick-17b-128e-instruct", // fast, very capable
-  "llama-3.3-70b-versatile",             // already proven in this project
+  "openai/gpt-oss-120b",  // strongest general model on Groq free tier
+  "groq/compound",        // agentic fallback, clean plain-text output
+  "openai/gpt-oss-20b",   // smallest/fastest last resort
 ];
 
 const CORS = {
