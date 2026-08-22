@@ -93,7 +93,8 @@ This exact bug silently produced 0 parsed signals in `/api/morning-brain`.
 | `GROQ_API_KEY` | AlphaBot + signals, server-side | ✅ Working |
 | `NEXT_PUBLIC_GROQ_API_KEY` | AlphaBot on GitHub Pages (Groq allows CORS) | ✅ Working |
 | `NEXT_PUBLIC_FINNHUB_API_KEY` | Live news + quotes | ✅ Working |
-| `NEXT_PUBLIC_TWELVEDATA_API_KEY` | India/UAE candles | ✅ Working |
+| `NEXT_PUBLIC_TWELVEDATA_API_KEY` | India/UAE candles + gold spot (XAU/USD) | ✅ Working |
+| `NEXT_PUBLIC_ALPHAVANTAGE_API_KEY` | WTI/Brent $/barrel history | Not set — falls back to the shared `demo` key |
 | `ANTHROPIC_API_KEY` | Claude signals (best quality) | Empty — optional |
 | `GOOGLE_AI_KEY` | Gemini signals | Not set — optional |
 | `WEBHOOK_SECRET` | TradingView webhook auth | ❌ Not set |
@@ -138,6 +139,7 @@ src/app/
 │   ├── intel/              # Live Finnhub news + economic calendar
 │   ├── us/ uae/ india/     # Per-market pages with live quotes
 │   ├── crypto/             # Crypto markets (Binance)
+│   ├── commodities/        # Oil & Gold — $/barrel history, gold spot, world data
 │   ├── markets/            # Multi-market live quotes (Binance-style)
 │   ├── fear-greed/         # Per-market sentiment + strategy playbook
 │   ├── charts/             # TradingView chart widget
@@ -161,6 +163,8 @@ src/app/
 | File | Purpose |
 |------|---------|
 | `src/lib/technicals.ts` | Pure TS RSI(14), MACD(12,26,9), EMA(9/21/50/200), ATR(14) — no deps |
+| `src/lib/commodities.ts` | Oil & gold data layer + world reference data + series analytics |
+| `src/hooks/useCommodities.ts` | Loads gold spot/history, WTI+Brent $/bbl, 19 proxy quotes |
 | `src/lib/market-data.ts` | Unified price client → `market-prices` Edge Function, 30s cache |
 | `src/lib/signals.ts` | Signal types + helpers for the live signals feed |
 | `src/lib/finnhub-ws.ts` | Finnhub WebSocket client for real-time US trades |
@@ -179,6 +183,56 @@ src/app/
 | `src/hooks/useMarketData.ts` | Legacy Polygon polling hook |
 | `src/components/ui/TradeModal.tsx` | Prefillable paper-trade modal (symbol/price/SL/TP/side) |
 | `src/store/useStore.ts` | Zustand store (activeMarket, selectedSymbol, sidebarCollapsed) |
+
+---
+
+## Commodities — Oil & Gold (`/commodities`)
+
+Entirely client-side and CORS-safe, so unlike the market pages it keeps working on
+the static GitHub Pages export with no Supabase and no API routes.
+
+### Data sources (all verified 2026-08-22)
+| Need | Source | Notes |
+|---|---|---|
+| Gold spot + daily history | Twelve Data `XAU/USD` | Free tier. Silver/platinum and XAU/EUR are paid. |
+| WTI + Brent **$/barrel** | Alpha Vantage `WTI` / `BRENT` | Real per-barrel series, monthly back to 1986/87. |
+| Live oil/gold exposure | Finnhub quotes | 19 US-listed instruments: USO, BNO, XLE, GLD, IAU, GDX, majors, services, miners. |
+
+**Twelve Data does not sell WTI/Brent on the free tier** (HTTP 404 pointing at the Grow
+plan) and **Finnhub candles are 403 on free**. Alpha Vantage is the only free source of
+genuine per-barrel history found — hence the split above. Yahoo Finance was rejected: no
+CORS headers and it rate-limits to 429.
+
+### Rate limits — why everything is cached in localStorage
+Alpha Vantage allows only **25 requests/day**, so per-barrel series cache for 12h; gold
+history 1h; quotes 2m. Without a key the code falls back to Alpha Vantage's shared `demo`
+key, which serves WTI/BRENT but is throttled. Set `NEXT_PUBLIC_ALPHAVANTAGE_API_KEY` for
+a dedicated quota.
+
+### Page structure
+Five tabs: **Overview** (Brent vs WTI chart, drivers, historic shocks) · **Oil**
+(per-benchmark statistics, full history charts, Brent–WTI spread and correlation, global
+benchmark table) · **Gold** (spot, 52w range, daily chart, technical read, demand mix) ·
+**Equities** (19 live quotes, each copy-tradeable into the paper portfolio) ·
+**World Data** (producers, reserves, importers, central bank gold, OPEC+).
+
+### Analytics
+`computeSeriesStats` returns series high/low, mean, median, stdev, volatility, CAGR, max
+drawdown and current drawdown from peak. Gold also runs through `computeIndicators` — the
+same engine Morning Brain uses — for RSI/MACD/EMA/ATR.
+
+⚠️ Stats are labelled **"series high/low"**, not "all-time": they are computed over the
+loaded window only (gold ≈400 sessions, oil ≈40 years of monthly data). Do not relabel
+these as all-time.
+
+### Deliberate design decisions
+- **Commodities are NOT in the `MARKETS` tuple.** That tuple drives the header market
+  switcher and `useLivePrices`, which only understand US/INDIA/UAE/CRYPTO. Adding a fifth
+  member breaks both. Commodities use `COMMODITY_WATCHLIST` in `constants.ts` instead.
+- **Morning Brain covers commodities via GLD/USO/BNO**, which are US-listed and therefore
+  ride the existing Polygon path — no new fetch branch needed.
+- **World reference data is curated static data**, clearly labelled as such in the UI with
+  its vintage. No free API publishes production, reserves or central bank holdings.
 
 ---
 
@@ -289,6 +343,7 @@ Last verified 2026-08-22: ✅ 23 routes exported, including `/audit` and `/deplo
 | 2026-05-29 | Paper trading full stack, copy trading, Morning Brain, Audit page, Deploy Checklist |
 | 2026-06 | Google Analytics; agentic research agents + live signals + signal breakdown tab |
 | **2026-08-22** | **Restore session** — see below |
+| **2026-08-22** | **Commodities** — `/commodities` page: real $/barrel WTI+Brent history, gold spot + technicals, 19 live oil/gold equities, global reference data. Morning Brain extended to GLD/USO/BNO. |
 
 ### 2026-08-22 — Restore session
 Recovered ~1,900 lines of work that were stranded, uncommitted, in the stale

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Zap, Briefcase, Settings, ChevronRight,
   Bot, ShieldAlert, BarChart2, Users, Newspaper,
   TrendingUp, Flag, Globe2, Bell, Building2, LineChart, Gauge, Bitcoin,
-  Activity, ClipboardList,
+  Activity, ClipboardList, Fuel,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -38,6 +38,7 @@ const NAV_SECTIONS = [
       { href: "/uae",    icon: Globe2,    label: "UAE Markets"   },
       { href: "/india",  icon: TrendingUp,label: "India Markets" },
       { href: "/crypto", icon: Bitcoin,   label: "Crypto"        },
+      { href: "/commodities", icon: Fuel, label: "Oil & Gold"    },
     ],
   },
   {

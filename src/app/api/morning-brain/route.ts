@@ -30,6 +30,12 @@ const DEFAULT_SYMBOLS = [
   { symbol: "TCS",      market: "INDIA",  exchange: "NSE",    currency: "₹"   },
   { symbol: "FAB",      market: "UAE",    exchange: "ADX",    currency: "د.إ" },
   { symbol: "EMAAR",    market: "UAE",    exchange: "DFM",    currency: "د.إ" },
+  // Commodities. These are US-listed trackers, so they ride the existing US
+  // (Polygon) path — GLD for gold, USO for WTI, BNO for Brent. The real
+  // $/barrel and $/oz benchmark series live in src/lib/commodities.ts.
+  { symbol: "GLD",      market: "US",     exchange: "NYSE",   currency: "$"   },
+  { symbol: "USO",      market: "US",     exchange: "NYSE",   currency: "$"   },
+  { symbol: "BNO",      market: "US",     exchange: "NYSE",   currency: "$"   },
 ];
 
 // ── Fetch OHLCV ────────────────────────────────────────────────────────────────

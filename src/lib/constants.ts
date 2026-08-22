@@ -30,6 +30,17 @@ export const DEFAULT_WATCHLIST = {
   CRYPTO: ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"],
 };
 
+// Commodities are deliberately NOT part of MARKETS: that tuple drives the header
+// market switcher and the live-quotes fetch, which only understands the four
+// exchange-backed markets above. Oil and gold have their own page (/commodities)
+// and their own data layer (src/lib/commodities.ts).
+export const COMMODITY_WATCHLIST = {
+  // Real benchmark prices, in dollars per barrel / per troy ounce
+  BENCHMARKS: ["BRENT", "WTI", "XAU/USD"],
+  // US-listed instruments used for live intraday exposure
+  PROXIES: ["USO", "BNO", "GLD", "IAU", "GDX", "XLE"],
+};
+
 // Mock portfolio stats for UI development
 export const MOCK_PORTFOLIO = {
   totalValue: 287450.32,
