@@ -18,23 +18,54 @@ Built with Next.js 16 App Router, Supabase, Polygon.io, and Framer Motion.
 
 ---
 
-## 🚨 Current Blockers (as of 2026-08-22)
+## Supabase — restored 2026-08-22
+
+The project `mxwrfiihmfmlhtmynpal` had gone to NXDOMAIN and has since been **restored**.
+Verified working: live prices on US/India/UAE via the `market-prices` Edge Function,
+paper trading with its data intact, and Morning Brain persisting signals
+(`persisted: true`).
+
+### Authentication — new key format
+The project now issues Supabase's **new API keys**. `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+holds a `sb_publishable_...` key rather than the legacy anon JWT. Both formats currently
+work; publishable is the forward-looking one and is what is configured.
+
+`sb_publishable_` keys are opaque — unlike the old anon JWTs they do **not** encode the
+project ref, so the project URL cannot be recovered from the key alone.
+
+WARNING: `GET /rest/v1/` (the schema root) rejects publishable keys with
+"Secret API key required". That is expected and is **not** a broken key — table reads
+work fine. Do not use the REST root as a health check.
+
+### What did NOT come back
+| Survived (with data) | Missing |
+|---|---|
+| `market_signals`, `signals_generated`, `alpha_signals` | `us_institutions`, `india_superinvestors`, `uae_dividend_stocks` |
+| `paper_portfolios`, `paper_positions`, `paper_trade_log` | `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds` |
+| All four Edge Functions | `news_articles`, `economic_events`, `block_deals`, `institutional_holdings`, `company_info` |
+
+Everything the app *writes* survived. The missing tables are reference data only, and
+`src/lib/db.ts` is Supabase-first with a static fallback, so those pages work regardless.
+Re-run `001`, `002` and `003` to restore DB-backed reference data.
+
+## Remaining blockers
 
 | Blocker | Impact | Fix |
 |---|---|---|
-| **Supabase project `mxwrfiihmfmlhtmynpal` no longer exists** | DNS returns NXDOMAIN. All DB reads/writes, both Edge Functions (`market-prices`, `send-notification`), paper-trade persistence, and signal persistence are dead. | Create a new Supabase project, re-run migrations 001–005, redeploy Edge Functions, update `.env.local` + the GitHub Actions workflow + `--project-ref` in deploy commands. Needs owner login. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Set in `.env.local`, but points at the dead project. | Replace when the new project exists. |
-| `TELEGRAM_BOT_TOKEN` | Never set. Telegram alerts inert. | `supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref <new-ref>` |
+| `agent-research` returns 500 | Research agents dead. The deployed copy still calls the decommissioned Groq models; the fix is in the repo but not deployed. | `supabase functions deploy agent-research --project-ref mxwrfiihmfmlhtmynpal` |
+| Reference tables missing | Institutions/strategies pages serve static fallback rather than DB-backed data. | Re-run migrations 001, 002, 003 |
+| `TELEGRAM_BOT_TOKEN` | Never set. Telegram alerts inert (WhatsApp needs no server token). | `supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref mxwrfiihmfmlhtmynpal` |
 | `WEBHOOK_SECRET` | Not set. TradingView webhook unauthenticated. | Set in `.env.local`. |
 
-**Everything that does not touch Supabase works.** See the verified-services table below.
+The first two need Supabase **account** access (CLI login or the dashboard SQL editor) —
+neither is reachable with a publishable or service-role key.
 
 ---
 
 ## Accounts & Access
 
 ### Supabase
-- **Old project ref:** `mxwrfiihmfmlhtmynpal` — **GONE** (NXDOMAIN, verified 2026-08-22)
+- **Project ref:** `mxwrfiihmfmlhtmynpal` — went NXDOMAIN, **restored 2026-08-22**
 - **Owner account:** `emiratesprice@gmail.com` (org: `emiratesprice`)
 - **NOT under** `vinayakbhadani1998@gmail.com` — that account owns different projects
 - **CLI deploy:** must `supabase login` as `emiratesprice@gmail.com` before deploying Edge Functions
@@ -58,7 +89,7 @@ Built with Next.js 16 App Router, Supabase, Polygon.io, and Framer Motion.
 | Fonts | Inter (body) · Space Grotesk (headings) · JetBrains Mono (numbers) |
 | State | Zustand (`src/store/useStore.ts`) |
 | Market Data | Polygon.io (US/crypto daily OHLCV) · Binance · Yahoo Finance · Twelve Data · Finnhub |
-| Database | Supabase PostgreSQL — **project deleted, must be recreated** |
+| Database | Supabase PostgreSQL (`mxwrfiihmfmlhtmynpal`) — restored; new `sb_publishable_` key format |
 | AI | Groq `openai/gpt-oss-120b` (chat + signals) |
 | News | Finnhub free tier |
 | Deployment | GitHub Pages via GitHub Actions (`output: 'export'`) |
@@ -87,9 +118,9 @@ This exact bug silently produced 0 parsed signals in `/api/morning-brain`.
 | Variable | Purpose | Status |
 |----------|---------|--------|
 | `POLYGON_API_KEY` | Market data (server-side ONLY) | ✅ Working |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | ⚠️ Points at deleted project |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (safe client-side) | ⚠️ Dead project |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin writes (server-side ONLY) | ⚠️ Dead project |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | ✅ Working |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable key (safe client-side) | ✅ Working (`sb_publishable_…`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin writes (server-side ONLY) | ✅ Working (legacy JWT still valid) |
 | `GROQ_API_KEY` | AlphaBot + signals, server-side | ✅ Working |
 | `NEXT_PUBLIC_GROQ_API_KEY` | AlphaBot on GitHub Pages (Groq allows CORS) | ✅ Working |
 | `NEXT_PUBLIC_FINNHUB_API_KEY` | Live news + quotes | ✅ Working |
@@ -110,7 +141,7 @@ This exact bug silently produced 0 parsed signals in `/api/morning-brain`.
 | Twelve Data | ✅ HTTP 200 |
 | Groq (`openai/gpt-oss-120b`) | ✅ chat + JSON mode |
 | Yahoo Finance | ⚠️ HTTP 429 (rate-limited, intermittent) |
-| Supabase project | ❌ NXDOMAIN — deleted |
+| Supabase REST + Edge Functions | ✅ Restored — live prices, paper trades, signal writes all verified |
 
 ### AI model priority chain (Morning Brain)
 `/api/morning-brain` tries, in order:

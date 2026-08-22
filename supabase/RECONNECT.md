@@ -1,11 +1,13 @@
 # Reconnecting AlphaOS to a Supabase project
 
-The original project `mxwrfiihmfmlhtmynpal` was deleted — its subdomain returns
-NXDOMAIN on public resolvers, which takes down every database read/write, all four
-Edge Functions, paper-trade persistence and signal persistence.
-
-This is the complete list of what has to happen to point AlphaOS at a new project.
-Nothing here needs a code change; steps 2 and 3 are configuration only.
+> **STATUS 2026-08-22: the original project `mxwrfiihmfmlhtmynpal` was RESTORED.**
+> Live prices, paper trading and signal persistence are all verified working again.
+> This runbook is kept for the next outage, and because part of it still applies:
+> the 001/002/003 reference tables did **not** come back and still need re-running.
+>
+> Also note the project now issues `sb_publishable_…` keys instead of anon JWTs.
+> Those keys are opaque and do **not** encode the project ref, so keep the project
+> URL recorded somewhere — you cannot derive it from the key.
 
 ---
 
@@ -94,8 +96,17 @@ supabase secrets set TELEGRAM_BOT_TOKEN=<token>  --project-ref <new-ref>   # opt
 ## 5. Verify
 
 ```bash
-# Should return 200, not 000
-curl -s -o /dev/null -w "%{http_code}\n" "https://<new-ref>.supabase.co/rest/v1/" -H "apikey: <anon key>"
+# Query a real table — NOT /rest/v1/. The schema root rejects sb_publishable_
+# keys with "Secret API key required", which looks like a broken key but isn't.
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "https://<ref>.supabase.co/rest/v1/alpha_signals?select=ticker&limit=1" \
+  -H "apikey: <publishable key>" -H "Authorization: Bearer <publishable key>"
+
+# Edge Function proxy — this is what gates live prices on US/India/UAE
+curl -s -X POST "https://<ref>.supabase.co/functions/v1/market-prices" \
+  -H "Content-Type: application/json" -H "apikey: <publishable key>" \
+  -H "Authorization: Bearer <publishable key>" \
+  -d '{"symbols":["NVDA"],"market":"US"}'
 
 # Paper trading should return a portfolio, not null
 curl -s http://localhost:3000/api/paper-trades

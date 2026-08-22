@@ -26,20 +26,21 @@ const ALPHA_KEY    = process.env.NEXT_PUBLIC_ALPHAVANTAGE_API_KEY || "demo";
 const EDGE_URL     = `${SUPABASE_URL}/functions/v1/market-prices`;
 
 // ─── FEATURE TRUTH MAP ───────────────────────────────────────────────────────
-// Last reconciled against reality: 2026-08-22.
+// Last reconciled against reality: 2026-08-22, after the Supabase project was
+// restored.
 //
 // Two things dominate this map and are easy to forget:
-//  1. Supabase project mxwrfiihmfmlhtmynpal was DELETED. Anything that reads or
-//     writes the database, or calls an Edge Function, is down until a new
-//     project is wired up — see supabase/RECONNECT.md.
+//  1. Supabase project mxwrfiihmfmlhtmynpal is BACK, with signal and paper-trade
+//     data intact and all Edge Functions deployed. The 001/002/003 reference
+//     tables did NOT come back — those pages fall back to static data by design.
 //  2. CI strips src/app/api before the static export, so every API route is
 //     DEV ONLY: it works on `npm run dev`, never on GitHub Pages.
 const FEATURES = [
   // ─ Prices & Data
-  { category: "Prices & Data", feature: "Ticker Bar Prices",      status: "BROKEN",  detail: "Routes through the market-prices Edge Function — dead with the Supabase project" },
-  { category: "Prices & Data", feature: "US Markets Page",        status: "BROKEN",  detail: "14 US stocks via Edge Function — dead. Finnhub itself is fine; only the proxy is gone" },
-  { category: "Prices & Data", feature: "India Markets Page",     status: "BROKEN",  detail: "NSE stocks via Edge Function — dead. Yahoo also blocks CORS + rate-limits" },
-  { category: "Prices & Data", feature: "UAE Markets Page",       status: "BROKEN",  detail: "DFM/ADX stocks via Edge Function — dead" },
+  { category: "Prices & Data", feature: "Ticker Bar Prices",      status: "LIVE",    detail: "Binance (Crypto) + Finnhub (US) + Yahoo (India/UAE) via the market-prices Edge Function" },
+  { category: "Prices & Data", feature: "US Markets Page",        status: "LIVE",    detail: "14/14 live from Finnhub through the Edge Function proxy" },
+  { category: "Prices & Data", feature: "India Markets Page",     status: "LIVE",    detail: "13/13 NSE stocks live from Yahoo through the Edge Function (which sidesteps Yahoo's CORS block)" },
+  { category: "Prices & Data", feature: "UAE Markets Page",       status: "LIVE",    detail: "DFM/ADX stocks via Edge Function; FAB/ADNOCGAS/ETISALAT have no free feed" },
   { category: "Prices & Data", feature: "Crypto Markets Page",    status: "LIVE",    detail: "Binance REST called directly from the browser — no Supabase dependency" },
   { category: "Prices & Data", feature: "Fear & Greed Index",     status: "LIVE",    detail: "Crypto: alternative.me direct | US/India/UAE: derived from VIX/RSI" },
   { category: "Prices & Data", feature: "TradingView Charts",     status: "LIVE",    detail: "Official TradingView widget — real OHLCV charts" },
@@ -56,15 +57,15 @@ const FEATURES = [
   { category: "AI & Signals",  feature: "AI Signal Generation",   status: "DEV",     detail: "Morning Brain is real: live OHLCV → indicators → news → AI. API route, so dev only" },
   { category: "AI & Signals",  feature: "Signal Confidence Score",status: "DEV",     detail: "Genuinely model-produced when Morning Brain runs; the Signals page still shows demo rows otherwise" },
   { category: "AI & Signals",  feature: "Signal Rationale",       status: "DEV",     detail: "Real AI rationale citing actual RSI/MACD/EMA values" },
-  { category: "AI & Signals",  feature: "Signal Persistence",     status: "BROKEN",  detail: "Writes to signals_generated fail — Supabase gone. Signals are returned with a warning, not lost" },
+  { category: "AI & Signals",  feature: "Signal Persistence",     status: "DEV",     detail: "Writes to signals_generated confirmed working again (persisted:true). API route, so dev only" },
   // ─ Trading
   { category: "Trading",       feature: "New Trade Modal",        status: "LIVE",    detail: "Opens and validates anywhere; the write behind it needs the database" },
   { category: "Trading",       feature: "Copy Trade from Signal", status: "LIVE",    detail: "Trade button on each signal row → TradeModal prefilled with entry/SL/TP" },
   { category: "Trading",       feature: "Copy Trader Portfolio",  status: "LIVE",    detail: "Holding chips on Traders + Institutions open a prefilled trade" },
   { category: "Trading",       feature: "Copy Trade Commodities", status: "LIVE",    detail: "Every row on the Commodities equities tab is copy-tradeable" },
-  { category: "Trading",       feature: "Paper Trade DB",         status: "BROKEN",  detail: "paper_positions is gone with the project. Migration 006 recreates it" },
-  { category: "Trading",       feature: "Paper Portfolio P&L",    status: "DEV",     detail: "GET /api/paper-trades refreshes current_price per market on every call — needs the DB back" },
-  { category: "Trading",       feature: "Close Position",         status: "DEV",     detail: "Realises P&L and returns cash — API route, needs the DB back" },
+  { category: "Trading",       feature: "Paper Trade DB",         status: "LIVE",    detail: "paper_portfolios / paper_positions / paper_trade_log survived the outage with data intact" },
+  { category: "Trading",       feature: "Paper Portfolio P&L",    status: "DEV",     detail: "GET /api/paper-trades refreshes current_price per market — verified live. API route, so dev only" },
+  { category: "Trading",       feature: "Close Position",         status: "DEV",     detail: "Realises P&L and returns cash to the balance — API route, so dev only" },
   // ─ Strategy
   { category: "Strategy",      feature: "Strategy Definitions",   status: "STATIC",  detail: "10 strategies with rules — good reference data" },
   { category: "Strategy",      feature: "Backtesting Engine",     status: "MISSING", detail: "No backtesting — needs historical OHLCV + simulation loop" },
@@ -77,11 +78,13 @@ const FEATURES = [
   { category: "Portfolio & Risk", feature: "Risk Index",          status: "FAKE",    detail: "Hardcoded 38 — not computed from real positions" },
   { category: "Portfolio & Risk", feature: "Risk Radar",          status: "FAKE",    detail: "Static 6-dimension scores" },
   // ─ Infrastructure
-  { category: "Infrastructure", feature: "Supabase Project",      status: "BROKEN",  detail: "mxwrfiihmfmlhtmynpal returns NXDOMAIN — deleted. See supabase/RECONNECT.md" },
-  { category: "Infrastructure", feature: "Paper Trading Schema",  status: "LIVE",    detail: "Recovered as migration 006 — was never committed and was lost with the project" },
+  { category: "Infrastructure", feature: "Supabase Project",      status: "LIVE",    detail: "mxwrfiihmfmlhtmynpal restored; now authenticated with a sb_publishable_ key" },
+  { category: "Infrastructure", feature: "Reference Tables",      status: "MISSING", detail: "001/002/003 tables (strategies, institutions, news) did not survive — pages fall back to static data" },
+  { category: "Infrastructure", feature: "Paper Trading Schema",  status: "LIVE",    detail: "Survived intact; also committed as migration 006, which was never in the repo before" },
   { category: "Infrastructure", feature: "Supabase Auth",         status: "MISSING", detail: "No login — all data under demo UUID" },
   { category: "Infrastructure", feature: "Morning Brain (Cron)",  status: "MISSING", detail: "Pipeline exists but nothing schedules it — no daily run" },
-  { category: "Infrastructure", feature: "Notification Delivery", status: "BROKEN",  detail: "send-notification Edge Function died with the project; Telegram token never set" },
+  { category: "Infrastructure", feature: "Notification Delivery", status: "BROKEN",  detail: "send-notification Edge Function is deployed and responding, but TELEGRAM_BOT_TOKEN was never set" },
+  { category: "Infrastructure", feature: "Research Agents",       status: "BROKEN",  detail: "agent-research returns 500 — still running the old decommissioned Groq models; needs redeploy" },
   { category: "Infrastructure", feature: "GitHub Pages Deploy",   status: "LIVE",    detail: "Push to main → static export → live in ~60s, Node 24" },
 ];
 
