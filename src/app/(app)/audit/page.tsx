@@ -71,14 +71,14 @@ const FEATURES = [
   // ─ Strategy
   { category: "Strategy",      feature: "Strategy Definitions",   status: "STATIC",  detail: "10 strategies with rules — good reference data" },
   { category: "Strategy",      feature: "Backtesting Engine",     status: "MISSING", detail: "No backtesting — needs historical OHLCV + simulation loop" },
-  { category: "Strategy",      feature: "Strategy P&L History",   status: "FAKE",    detail: "Win rates / monthly returns are hardcoded numbers" },
+  { category: "Strategy",      feature: "Strategy P&L History",   status: "STATIC",  detail: "Win rate / R:R / returns are illustrative and now labelled as such — no backtest engine exists to measure them" },
   { category: "Strategy",      feature: "Apply Strategy to Trade",status: "MISSING", detail: "No 'trade this strategy' button wired to paper trading" },
   // ─ Portfolio & Risk
   { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "LIVE",    detail: "Reads paper_positions directly from Supabase on Pages; demo rows only when nothing is readable, and badged DEMO" },
   { category: "Portfolio & Risk", feature: "Portfolio KPIs",      status: "LIVE",    detail: "Real balance: $100,234.62 total, $99,161.02 cash. NUMERIC-as-string coercion fixed the $0.00 total" },
   { category: "Portfolio & Risk", feature: "Equity Curve",        status: "FAKE",    detail: "8 hardcoded data points" },
-  { category: "Portfolio & Risk", feature: "Risk Index",          status: "FAKE",    detail: "Hardcoded 38 — not computed from real positions" },
-  { category: "Portfolio & Risk", feature: "Risk Radar",          status: "FAKE",    detail: "Static 6-dimension scores" },
+  { category: "Portfolio & Risk", feature: "Risk Index",          status: "STATIC",  detail: "Fixed model, now badged ILLUSTRATIVE MODEL in-page. The fake \"Updated 08:04 UAE\" timestamp is gone" },
+  { category: "Portfolio & Risk", feature: "Risk Radar",          status: "STATIC",  detail: "Fixed 6-dimension scores; 4 of 6 (volatility, sentiment, concentration, leverage) are computable from live data — not yet wired" },
   { category: "Portfolio & Risk", feature: "Live Quotes Page",   status: "LIVE",    detail: "/markets repointed from the stripped /api/quotes to the Edge Function — all 4 markets, badge derives from liveCount" },
   { category: "Portfolio & Risk", feature: "Market Overview Strip",status: "LIVE",    detail: "Was hardcoded and wrong on every tile. ADX/DFM + NIFTY 50 dropped rather than faked — no honest free source" },
   // ─ Infrastructure

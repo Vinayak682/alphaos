@@ -191,8 +191,19 @@ export default function StrategiesPage() {
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h1 className="font-heading text-xl font-bold">Strategies</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">6 built-in AI strategies · 5 active · 1 in paper mode</p>
+        <h1 className="font-heading text-xl font-bold flex items-center gap-2">
+          Strategies
+          {/* The rules are real reference data; the win rates, R:R, signal
+              counts and monthly returns are illustrative — there is no
+              backtesting engine, so nothing here was measured. */}
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+            REFERENCE
+          </span>
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          6 built-in strategy definitions · rules are reference data; win rate,
+          R:R and returns are illustrative, not backtested results
+        </p>
       </motion.div>
 
       <motion.div
@@ -203,7 +214,12 @@ export default function StrategiesPage() {
       >
         <div className="flex items-center gap-2 mb-4">
           <BarChart2 className="w-3.5 h-3.5 text-primary" />
-          <h2 className="text-sm font-semibold font-heading">Monthly Return vs Benchmark (S&P500 +4.1%)</h2>
+          <h2 className="text-sm font-semibold font-heading">
+            Monthly Return vs Benchmark
+            <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+              illustrative figures — no backtest has been run
+            </span>
+          </h2>
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <BarChart data={PERF_DATA} margin={{ left: -20 }}>

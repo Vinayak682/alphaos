@@ -104,8 +104,20 @@ export default function RiskPage() {
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h1 className="font-heading text-xl font-bold">Risk Index</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Portfolio composite risk · Updated 08:04 UAE · 6-dimension analysis</p>
+        <h1 className="font-heading text-xl font-bold flex items-center gap-2">
+          Risk Index
+          {/* Everything on this page is a fixed illustrative model, not a
+              measurement. The old subtitle read "Updated 08:04 UAE", a
+              hardcoded timestamp that never changed and so permanently implied
+              freshly computed data. */}
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+            ILLUSTRATIVE MODEL
+          </span>
+        </h1>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Fixed example scores — not computed from your positions, and not live.
+          The ranked table below is a watchlist illustration, not your holdings.
+        </p>
       </motion.div>
 
       {/* Top section */}
