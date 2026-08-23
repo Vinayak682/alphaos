@@ -563,6 +563,9 @@ export interface PortfolioResult {
     benchmarkReturnPct: number;
     benchmarkMaxDdPct: number;
     sharpe: number | null;
+    /** Benchmark Sharpe over the same window. Reporting the strategy's Sharpe
+     *  alone is the same omission as reporting its drawdown alone. */
+    benchmarkSharpe: number | null;
     rebalances: number;
     avgExposurePct: number;
     years: number;
@@ -713,6 +716,15 @@ export function runPortfolioBacktest(
   const mean = rets.length ? rets.reduce((a, b) => a + b, 0) / rets.length : 0;
   const sd = rets.length > 1 ? Math.sqrt(rets.reduce((a, r) => a + (r - mean) ** 2, 0) / (rets.length - 1)) : 0;
 
+  const bRets: number[] = [];
+  for (let i = 1; i < benchmark.length; i++) {
+    const prev = benchmark[i - 1].value;
+    if (prev > 0) bRets.push((benchmark[i].value - prev) / prev);
+  }
+  const bMean = bRets.length ? bRets.reduce((a, b) => a + b, 0) / bRets.length : 0;
+  const bSd = bRets.length > 1
+    ? Math.sqrt(bRets.reduce((a, r) => a + (r - bMean) ** 2, 0) / (bRets.length - 1)) : 0;
+
   return {
     equity, benchmark, symbols, spec,
     from: dates[spec.warmup], to: dates[dates.length - 1],
@@ -723,6 +735,7 @@ export function runPortfolioBacktest(
       benchmarkReturnPct: ((benchEnd - cfg.startEquity) / cfg.startEquity) * 100,
       benchmarkMaxDdPct: dd(benchmark),
       sharpe: sd > 0 ? (mean / sd) * Math.sqrt(252) : null,
+      benchmarkSharpe: bSd > 0 ? (bMean / bSd) * Math.sqrt(252) : null,
       rebalances,
       avgExposurePct: equity.length ? (exposureAcc / equity.length) * 100 : 0,
       years,

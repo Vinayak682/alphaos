@@ -182,7 +182,8 @@ export default function BacktestPanel() {
                   tone={pm.maxDrawdownPct < pm.benchmarkMaxDdPct ? "gain" : "loss"}
                   sub={`basket −${pm.benchmarkMaxDdPct.toFixed(1)}% · ${ddSaved >= 0 ? "saved" : "worse by"} ${Math.abs(ddSaved).toFixed(1)}pp`} />
                 <Metric label="Sharpe" value={pm.sharpe != null ? pm.sharpe.toFixed(2) : "—"}
-                  sub={`avg exposure ${pm.avgExposurePct.toFixed(0)}%`} />
+                  tone={pm.sharpe != null && pm.benchmarkSharpe != null && pm.sharpe > pm.benchmarkSharpe ? "gain" : undefined}
+                  sub={`basket ${pm.benchmarkSharpe != null ? pm.benchmarkSharpe.toFixed(2) : "—"} · exposure ${pm.avgExposurePct.toFixed(0)}%`} />
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <ComposedChart data={data}>
