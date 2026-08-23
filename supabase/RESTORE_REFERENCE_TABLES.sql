@@ -1,45 +1,26 @@
 -- ============================================================================
--- AlphaOS — RESTORE REFERENCE TABLES
+-- AlphaOS - RESTORE THE 12 MISSING REFERENCE TABLES
+-- Generated 2026-08-23 from migrations 001 + 002 + 003.
 --
--- One paste-ready bundle of migrations 001 + 002 + 003, for the Supabase SQL
--- editor (Dashboard -> SQL Editor -> New query -> paste -> Run).
+-- Paste the WHOLE file into: Dashboard -> SQL Editor -> New query -> Run.
 --
--- WHY: when project mxwrfiihmfmlhtmynpal was restored on 2026-08-22, the tables
--- the app WRITES came back with data intact (signals_generated, alpha_signals,
--- market_signals, paper_*), but the read-only reference tables did not.
+-- This deliberately touches ONLY the tables that did not survive the outage:
+--   us_institutions, india_superinvestors, uae_dividend_stocks, strategies, strategy_exact_params, uae_sovereign_funds,
+--   waha_funds, news_articles, economic_events, block_deals, institutional_holdings, company_info
 --
--- IDEMPOTENT: this bundle is generated from 001/002/003 with guards added.
---   * CREATE TABLE / CREATE INDEX already use IF NOT EXISTS
---   * seed INSERTs already use ON CONFLICT DO UPDATE
---   * CREATE POLICY  has no IF NOT EXISTS in Postgres, so every policy is
---     preceded by a generated DROP POLICY IF EXISTS
---   * CREATE TRIGGER likewise gets a generated DROP TRIGGER IF EXISTS
+-- It NEVER touches the tables that DID survive (and hold your live data):
+--   market_signals, signals_generated, alpha_signals, paper_portfolios, paper_positions, paper_trade_log
 --
--- That last pair matters: market_signals SURVIVED the outage together with its
--- policies, so a plain re-run fails with
---   ERROR 42710: policy "Public read signals" for table "market_signals"
---   already exists
--- which is exactly what happened on the first attempt.
+-- That exclusion matters. The live signals_generated uses `ticker`, while
+-- migration 003 declares a stale `symbol` schema that never matched the app.
+-- CREATE TABLE IF NOT EXISTS skipped the existing table, then the index on
+-- `symbol` failed with: ERROR 42703 column "symbol" does not exist.
+-- Every statement referencing a surviving table has been removed here.
 --
--- Dropping and recreating a policy does not touch table data.
---
--- Restores: us_institutions, india_superinvestors, uae_dividend_stocks,
---           strategies, strategy_exact_params, uae_sovereign_funds,
---           waha_funds, news_articles, economic_events, block_deals,
---           institutional_holdings, company_info
+-- Safe to re-run: CREATE TABLE/INDEX use IF NOT EXISTS, seeds use ON CONFLICT,
+-- and each policy/trigger is preceded by a generated DROP ... IF EXISTS
+-- (24 policies, 5 triggers). Dropping a policy does not touch data.
 -- ============================================================================
-
-
--- ===========================================================================
--- BEGIN 001_alphaos_schema.sql
--- ===========================================================================
--- ============================================================
--- AlphaOS — Supabase Schema
--- Run this in Supabase SQL Editor → "New Query"
--- ============================================================
-
--- ─── Extensions ──────────────────────────────────────────────
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ─── US Institutions (13F filings) ───────────────────────────
 CREATE TABLE IF NOT EXISTS us_institutions (
@@ -151,24 +132,6 @@ CREATE TABLE IF NOT EXISTS waha_funds (
   updated_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ─── Market Signals (live trading signals) ───────────────────
-CREATE TABLE IF NOT EXISTS market_signals (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  symbol      TEXT NOT NULL,
-  market      TEXT CHECK (market IN ('US','INDIA','UAE','CRYPTO')),
-  action      TEXT CHECK (action IN ('BUY','SELL','CLOSE','WATCH')),
-  price       DECIMAL(18,6),
-  strategy_id TEXT REFERENCES strategies(id),
-  confidence  INT CHECK (confidence BETWEEN 0 AND 100),
-  entry_price DECIMAL(18,6),
-  stop_loss   DECIMAL(18,6),
-  target_1    DECIMAL(18,6),
-  target_2    DECIMAL(18,6),
-  notes       TEXT,
-  active      BOOLEAN DEFAULT TRUE,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- ─── Row Level Security (public read, service role write) ─────
 ALTER TABLE us_institutions       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE india_superinvestors   ENABLE ROW LEVEL SECURITY;
@@ -177,7 +140,6 @@ ALTER TABLE strategies             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE strategy_exact_params  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uae_sovereign_funds    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE waha_funds             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE market_signals         ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone to read (public data)
 DROP POLICY IF EXISTS "Public read institutions" ON us_institutions;
@@ -194,8 +156,6 @@ DROP POLICY IF EXISTS "Public read sovereign funds" ON uae_sovereign_funds;
 CREATE POLICY "Public read sovereign funds"    ON uae_sovereign_funds    FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public read waha funds" ON waha_funds;
 CREATE POLICY "Public read waha funds"         ON waha_funds             FOR SELECT USING (true);
-DROP POLICY IF EXISTS "Public read signals" ON market_signals;
-CREATE POLICY "Public read signals"            ON market_signals         FOR SELECT USING (true);
 
 -- Service role can write (for your regular updates)
 DROP POLICY IF EXISTS "Service write institutions" ON us_institutions;
@@ -212,14 +172,6 @@ DROP POLICY IF EXISTS "Service write sovereign funds" ON uae_sovereign_funds;
 CREATE POLICY "Service write sovereign funds"  ON uae_sovereign_funds    FOR ALL USING (auth.role() = 'service_role');
 DROP POLICY IF EXISTS "Service write waha funds" ON waha_funds;
 CREATE POLICY "Service write waha funds"       ON waha_funds             FOR ALL USING (auth.role() = 'service_role');
-DROP POLICY IF EXISTS "Service write signals" ON market_signals;
-CREATE POLICY "Service write signals"          ON market_signals         FOR ALL USING (auth.role() = 'service_role');
-
--- ─── Indexes ─────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_signals_symbol   ON market_signals(symbol);
-CREATE INDEX IF NOT EXISTS idx_signals_market   ON market_signals(market);
-CREATE INDEX IF NOT EXISTS idx_signals_active   ON market_signals(active);
-CREATE INDEX IF NOT EXISTS idx_signals_created  ON market_signals(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_strategies_market ON strategies USING GIN(markets);
 
 -- ─── Updated_at trigger ───────────────────────────────────────
@@ -238,13 +190,6 @@ DROP TRIGGER IF EXISTS trg_strategies_updated ON strategies;
 CREATE TRIGGER trg_strategies_updated    BEFORE UPDATE ON strategies            FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 DROP TRIGGER IF EXISTS trg_exact_params_updated ON strategy_exact_params;
 CREATE TRIGGER trg_exact_params_updated  BEFORE UPDATE ON strategy_exact_params FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
-
--- END 001_alphaos_schema.sql
-
--- ===========================================================================
--- BEGIN 002_seed_data.sql
--- ===========================================================================
 -- ============================================================
 -- AlphaOS — Seed Data (run AFTER 001_alphaos_schema.sql)
 -- Inserts all institutional intelligence data into Supabase
@@ -315,30 +260,6 @@ VALUES
   'Multi-Manager Equity Long / Short',
   'Multi-PM pod structure — each PM runs independent book. Sector specialists in healthcare, tech, consumer.',
   '~20% gross annualized; SAC Capital era record', 'purple'),
-
-('sands-capital', 'Sands Capital Management', 'Frank Sands', 'Q1 2026', 28.28, 67,
-  '[{"sector":"Software & Services","pct":45.81},{"sector":"Hardware Technology","pct":29.43},{"sector":"Manufacturing","pct":3.36}]',
-  '[{"ticker":"NVDA","name":"NVIDIA","valueB":3.89,"pct":13.77},{"ticker":"TSM","name":"TSMC","valueB":2.37,"pct":8.38},{"ticker":"GOOGL","name":"Alphabet","valueB":1.96,"pct":6.94}]',
-  '[{"ticker":"BE","changePct":0.63},{"ticker":"CRS","changePct":0.41}]',
-  '[{"ticker":"LRCX","changePct":-0.83},{"ticker":"SOT","changePct":-0.61}]',
-  'Concentrated Institutional Growth',
-  '67 stocks — highly concentrated in high-growth technology. 5–7 year holding horizon.',
-  'Global Growth Fund: top decile 10-year performance', 'indigo'),
-
-('scion', 'Scion Asset Management', 'Michael Burry', 'Q3 2025', 1.38, 8,
-  '[{"sector":"Deep Value Contrarian","pct":60.0},{"sector":"Bearish Put Options","pct":40.0}]',
-  '[{"ticker":"PLTR","name":"Palantir Puts $50 strike","valueB":0.092,"pct":6.67}]',
-  '[{"ticker":"PLTR Puts","changePct":100}]', '[]',
-  'Deep Contrarian Value / Short Overhyped Assets',
-  'Concentrates in 5–8 high-conviction positions. Shorts narrative bubbles using put options. $9.2M in 50,000 Palantir put contracts at $50 strike.',
-  '2008 Big Short: $700M+ profit', 'red')
-ON CONFLICT (id) DO UPDATE SET
-  portfolio_value_b = EXCLUDED.portfolio_value_b,
-  top_holdings = EXCLUDED.top_holdings,
-  recent_buys = EXCLUDED.recent_buys,
-  recent_sells = EXCLUDED.recent_sells,
-  reporting_period = EXCLUDED.reporting_period,
-  updated_at = NOW();
 
 -- ─── Indian Superinvestors ─────────────────────────────────────
 INSERT INTO india_superinvestors (id, name, firm, portfolio_inr_cr, stock_count, top_holdings, framework, entry_discipline, exit_rule, sizing, color)
@@ -416,69 +337,6 @@ VALUES
  'Size each position to keep total trade risk within 1% of total portfolio capital',
  '3:1 minimum; VCP setups typically 4:1 to 6:1', '≥1.5 on active trades'),
 
-('Dan Zanger Momentum Breakout', 'US Equities',
- 'Breakout of short-term continuation patterns: flags, pennants, cup-and-handle on high volume.',
- 'Exit 50% after first profit target. Trail remaining 50% with upward-adjusting stop.',
- '8% below purchase price — absolute hard stop, no exceptions',
- '8%–10% trailing on winning positions, adjusted upward as price moves.',
- 'Daily breakout volume 100%+ above 20-day average (2× normal).',
- 'Maximum 1% of total portfolio capital on any single trade',
- '3:1 to 5:1', NULL),
-
-('Paul Tudor Jones Global Macro', 'Global Futures, Debt, FX',
- 'Macro trend validated by price action plus technical breakout confirmation.',
- 'Crossover of key indicators OR time-based stops if thesis not playing out.',
- 'Capital risk hard-capped at 1% of total portfolio assets per trade',
- 'Dynamic stops adjusted relative to market volatility (ATR-based).',
- 'Volume analysis used to confirm macro-trend validity.',
- 'Hard 1% asset risk limit per trade',
- '5:1 minimum', NULL),
-
-('William O''Neil CAN SLIM', 'US Equities',
- 'Breakout from cup-with-handle consolidation 7+ weeks. Buy within 5% of the exact pivot point.',
- 'Structural breakout failure or market distribution phase. 20–25% profit if reached in 3 weeks.',
- '7%–8% below the buy point — most critical rule in CAN SLIM',
- 'Tightened to 2%–3% in volatile regimes. Normal: trail at 10-week MA.',
- 'Breakout day volume 40%–50% above average.',
- 'Sized relative to fund volatility and market conditions',
- '3:1 minimum; 8-week hold if +20% in 3 weeks', NULL),
-
-('Richard Dennis Turtle System 1', 'Global Commodities & Futures',
- 'Price closes above the highest 20-day high (Donchian Channel breakout).',
- 'Price crosses below the 10-day low extreme.',
- '2× the 20-day ATR below entry price (volatility-normalized)',
- 'Trails upward with each new pyramid unit added at ½ ATR moves.',
- 'Breakout day volume must exceed the 20-day average.',
- '1% of total equity per unit using 20-day ATR normalization. Max 4 units per market.',
- 'Variable; edge from large trending moves (10:1 to 20:1)', '~0.7 multi-year'),
-
-('Richard Dennis Turtle System 2', 'Global Commodities & Futures',
- 'Price closes above the highest 55-day high (longer-term trend breakout).',
- 'Price crosses below the 20-day low extreme.',
- '2× the 20-day ATR below entry (same volatility-normalized formula)',
- 'Trails upward with each new pyramid unit at ½ ATR. Wider trailing for longer trends.',
- 'Breakout day volume must exceed the 20-day average.',
- '1% of total equity per unit using 20-day ATR normalization',
- 'Higher than System 1 — catches multi-month major trends', '~0.7 to 1.0'),
-
-('Warren Buffett Economic Moat', 'Global Large-Cap Equities',
- 'Trades at 25%+ discount to calculated intrinsic value (DCF + owner earnings). Margin of safety required.',
- 'Fundamental change in competitive moat: ROCE declines, margins compress, debt rises, integrity issues.',
- 'Fundamental stop only — thesis-driven not price-driven. No mechanical price stop.',
- 'No price trailing stop. Hold forever if business keeps compounding.',
- 'Not applicable — enters over weeks/months regardless of volume.',
- 'Sized by capital conviction. Highly concentrated (3 stocks = 52% of Berkshire).',
- 'Decades of compounding at 20%+ CAGR', 'N/A — long horizon'),
-
-('Ray Dalio Risk Parity All Weather', 'Multi-Asset Global Sleeves',
- 'Correlation regime matching and macroeconomic cycle tracking. Rebalance when volatilities shift.',
- 'Diversification balance disrupted by correlation shifts or inflation regime change.',
- 'Diversification IS the stop-loss: 4 macro seasons (growth up/down × inflation up/down)',
- 'Systematic rebalancing to target risk weights — volatility-contribution based, not price.',
- 'Macro liquidity cycle monitoring. Executes via futures/swaps for efficient beta.',
- 'Leverages bonds 1.5–2× via futures. Total notional 150–200% of AUM.',
- 'N/A — targets 10% portfolio volatility', 'All Weather ~0.7; Pure Alpha ~1.4');
-
 -- ─── UAE Sovereign Funds ─────────────────────────────────────
 INSERT INTO uae_sovereign_funds (name, estimated_aum, focus, strategy)
 VALUES
@@ -504,56 +362,6 @@ VALUES
 ('Waha Islamic Income Fund', 'N/D', 2020, '37.5%',
  'Shariah-compliant assets and global sukuk',
  'Islamic income generation');
-
-
--- END 002_seed_data.sql
-
--- ===========================================================================
--- BEGIN 003_intelligence_layer.sql
--- ===========================================================================
--- Migration 003: Intelligence Layer
--- Tables: signals_generated, news_articles, economic_events,
---          block_deals, institutional_holdings, company_info
--- Run on: Supabase project mxwrfihmfmlhtmynpal
-
--- ────────────────────────────────────────────────────────────────────────────
--- 1. signals_generated
---    One row per AI-generated BUY/SELL/HOLD/EXIT signal per symbol per day.
--- ────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.signals_generated (
-  id                BIGSERIAL PRIMARY KEY,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  symbol            TEXT        NOT NULL,
-  market            TEXT        NOT NULL CHECK (market IN ('US','INDIA','UAE','CRYPTO')),
-  action            TEXT        NOT NULL CHECK (action IN ('BUY','SELL','HOLD','EXIT')),
-  confidence        NUMERIC(5,2) NOT NULL CHECK (confidence BETWEEN 0 AND 100),
-  risk_score        NUMERIC(5,2) NOT NULL CHECK (risk_score BETWEEN 0 AND 100),
-  entry_price       NUMERIC(18,4),
-  stop_loss         NUMERIC(18,4),
-  target_price      NUMERIC(18,4),
-  risk_reward       NUMERIC(6,2),
-  -- Confidence breakdown (weights sum: 0.30+0.25+0.20+0.15+0.10 = 1.0)
-  technical_score   NUMERIC(5,2),
-  sentiment_score   NUMERIC(5,2),
-  smart_money_score NUMERIC(5,2),
-  risk_score_raw    NUMERIC(5,2),
-  regime_score      NUMERIC(5,2),
-  -- Rationale fields
-  rationale         TEXT,
-  news_catalyst     TEXT,
-  strategy_tag      TEXT,
-  -- Status
-  is_active         BOOLEAN NOT NULL DEFAULT true,
-  triggered_at      TIMESTAMPTZ DEFAULT now(),
-  expires_at        TIMESTAMPTZ,
-  -- Source
-  brain_run_id      TEXT,
-  model_version     TEXT DEFAULT 'claude-sonnet-4-6'
-);
-
-CREATE INDEX IF NOT EXISTS idx_signals_symbol ON public.signals_generated (symbol, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_signals_market  ON public.signals_generated (market, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_signals_action  ON public.signals_generated (action, is_active);
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- 2. news_articles
@@ -685,20 +493,11 @@ CREATE TABLE IF NOT EXISTS public.company_info (
 
 CREATE INDEX IF NOT EXISTS idx_company_market ON public.company_info (market);
 CREATE INDEX IF NOT EXISTS idx_company_sector ON public.company_info (sector);
-
--- ────────────────────────────────────────────────────────────────────────────
--- Row Level Security: enable but allow anon reads (public dashboard)
--- ────────────────────────────────────────────────────────────────────────────
-ALTER TABLE public.signals_generated       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.news_articles           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.economic_events         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.block_deals             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.institutional_holdings  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_info            ENABLE ROW LEVEL SECURITY;
-
--- Allow anon SELECT on all tables (frontend uses anon key)
-DROP POLICY IF EXISTS "anon_read_signals" ON public.signals_generated;
-CREATE POLICY "anon_read_signals"       ON public.signals_generated       FOR SELECT TO anon USING (true);
 DROP POLICY IF EXISTS "anon_read_news" ON public.news_articles;
 CREATE POLICY "anon_read_news"          ON public.news_articles           FOR SELECT TO anon USING (true);
 DROP POLICY IF EXISTS "anon_read_events" ON public.economic_events;
@@ -709,10 +508,6 @@ DROP POLICY IF EXISTS "anon_read_inst" ON public.institutional_holdings;
 CREATE POLICY "anon_read_inst"          ON public.institutional_holdings  FOR SELECT TO anon USING (true);
 DROP POLICY IF EXISTS "anon_read_company" ON public.company_info;
 CREATE POLICY "anon_read_company"       ON public.company_info            FOR SELECT TO anon USING (true);
-
--- Service role can write (morning brain Python backend uses service role key)
-DROP POLICY IF EXISTS "service_write_signals" ON public.signals_generated;
-CREATE POLICY "service_write_signals"   ON public.signals_generated       FOR ALL  TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "service_write_news" ON public.news_articles;
 CREATE POLICY "service_write_news"      ON public.news_articles           FOR ALL  TO service_role USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "service_write_events" ON public.economic_events;
@@ -724,5 +519,3 @@ CREATE POLICY "service_write_inst"      ON public.institutional_holdings  FOR AL
 DROP POLICY IF EXISTS "service_write_company" ON public.company_info;
 CREATE POLICY "service_write_company"   ON public.company_info            FOR ALL  TO service_role USING (true) WITH CHECK (true);
 
-
--- END 003_intelligence_layer.sql
