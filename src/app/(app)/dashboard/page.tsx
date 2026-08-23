@@ -55,7 +55,7 @@ function PortfolioSparkline() {
 }
 
 export default function DashboardPage() {
-  const { stats, openTrade } = usePaperPortfolio();
+  const { stats, openTrade, source } = usePaperPortfolio();
   const p = stats;
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
 
@@ -90,7 +90,19 @@ export default function DashboardPage() {
         <div className="relative flex items-end justify-between flex-wrap gap-4">
           {/* Left: portfolio value */}
           <div>
-            <p className="text-xs text-muted-foreground mb-1 font-medium">Total Portfolio Value</p>
+            <p className="text-xs text-muted-foreground mb-1 font-medium flex items-center gap-2">
+              Total Portfolio Value
+              {/* Say so when these are placeholders rather than a real balance. */}
+              {source === "mock" ? (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                  DEMO DATA
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                  {source === "api" ? "● LIVE" : "● LIVE · DB"}
+                </span>
+              )}
+            </p>
             <div className="font-heading text-4xl font-bold tracking-tight">
               <AnimatedNumber value={p.totalValue} prefix="$" decimals={2} duration={1600} />
             </div>

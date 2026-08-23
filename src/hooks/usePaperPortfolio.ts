@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { MOCK_PORTFOLIO } from "@/lib/constants";
+import { supabase } from "@/lib/supabase";
+import { fetchLivePrices, type Market } from "@/lib/market-data";
+
+// Matches DEMO_USER in src/app/api/paper-trades/route.ts
+const DEMO_USER = "00000000-0000-0000-0000-000000000001";
+
+/** Where the numbers on screen actually came from. */
+export type PortfolioSource = "api" | "supabase" | "mock";
 
 export interface PaperPosition {
   id: string;
@@ -41,6 +49,8 @@ interface UsePaperPortfolioReturn {
   positions: PaperPosition[];
   stats: PortfolioStats;
   loading: boolean;
+  /** "mock" means the figures are placeholders, not a real balance. */
+  source: PortfolioSource;
   refresh: () => void;
   openTrade: (params: OpenTradeParams) => Promise<{ ok: boolean; error?: string }>;
   closeTrade: (positionId: string, closePrice: number) => Promise<{ ok: boolean; error?: string }>;
@@ -58,69 +68,158 @@ export interface OpenTradeParams {
   currency?: string;
 }
 
+/**
+ * Postgres NUMERIC columns arrive over PostgREST as STRINGS, not numbers.
+ * Without this coercion `cash_balance + positionValue` concatenates instead of
+ * adding — which rendered Total Portfolio Value as $0.00 while Cash still
+ * looked right, because division coerces but `+` does not.
+ */
+const num = (v: unknown): number => {
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : 0;
+};
+
 function computeStats(portfolio: PaperPortfolio | null, positions: PaperPosition[]): PortfolioStats {
   if (!portfolio) return MOCK_PORTFOLIO as PortfolioStats;
 
-  const positionValue = positions.reduce((sum, p) => {
-    return sum + p.quantity * (p.current_price ?? p.entry_price);
-  }, 0);
+  const cash    = num(portfolio.cash_balance);
+  const initial = num(portfolio.initial_balance) || cash;
 
-  const totalValue = portfolio.cash_balance + positionValue;
-  const totalPnl = totalValue - portfolio.initial_balance;
-  const totalPnlPct = (totalPnl / portfolio.initial_balance) * 100;
-
-  const unrealisedPnl = positions.reduce((sum, p) => {
-    const cur = p.current_price ?? p.entry_price;
-    return sum + (p.side === "LONG"
-      ? (cur - p.entry_price) * p.quantity
-      : (p.entry_price - cur) * p.quantity);
-  }, 0);
-
-  const today = new Date().toDateString();
-  const dayPositions = positions.filter(
-    (p) => new Date(p.opened_at).toDateString() === today
-  );
-  const dayPnl = dayPositions.reduce((sum, p) => {
-    const cur = p.current_price ?? p.entry_price;
-    return sum + (p.side === "LONG"
-      ? (cur - p.entry_price) * p.quantity
-      : (p.entry_price - cur) * p.quantity);
-  }, 0);
-
-  const gainers = positions.filter((p) => {
-    const cur = p.current_price ?? p.entry_price;
-    return p.side === "LONG" ? cur >= p.entry_price : cur <= p.entry_price;
+  // Normalise every position once so the maths below is plain arithmetic.
+  const rows = positions.map((p) => {
+    const entry = num(p.entry_price);
+    const cur   = p.current_price != null ? num(p.current_price) : entry;
+    const qty   = num(p.quantity);
+    return {
+      qty, entry, cur,
+      openedAt: p.opened_at,
+      pnl: p.side === "LONG" ? (cur - entry) * qty : (entry - cur) * qty,
+    };
   });
+
+  const positionValue = rows.reduce((sum, r) => sum + r.qty * r.cur, 0);
+  const totalValue    = cash + positionValue;
+  const totalPnlPct   = initial > 0 ? ((totalValue - initial) / initial) * 100 : 0;
+  const unrealisedPnl = rows.reduce((sum, r) => sum + r.pnl, 0);
+
+  const today  = new Date().toDateString();
+  const dayPnl = rows
+    .filter((r) => new Date(r.openedAt).toDateString() === today)
+    .reduce((sum, r) => sum + r.pnl, 0);
+
+  const gainers = rows.filter((r) => r.pnl >= 0).length;
 
   return {
     totalValue,
-    cashBalance: portfolio.cash_balance,
-    openPositions: positions.length,
+    cashBalance: cash,
+    openPositions: rows.length,
     totalPnl: unrealisedPnl,
     totalPnlPct,
     dayPnl,
-    dayPnlPct: totalValue > 0 ? (dayPnl / (totalValue - dayPnl)) * 100 : 0,
-    winRate: positions.length > 0 ? (gainers.length / positions.length) * 100 : 0,
+    dayPnlPct: totalValue - dayPnl > 0 ? (dayPnl / (totalValue - dayPnl)) * 100 : 0,
+    winRate: rows.length > 0 ? (gainers / rows.length) * 100 : 0,
   };
+}
+
+/**
+ * Read the portfolio straight from Supabase.
+ *
+ * The static GitHub Pages export has no /api/paper-trades — CI deletes
+ * src/app/api before building — so without this the dashboard silently showed
+ * MOCK_PORTFOLIO ($287k) instead of the real balance. anon/publishable keys
+ * have SELECT on both tables under the existing RLS policies, so a direct read
+ * works client-side. Writes still require the API route and its service key.
+ */
+async function loadFromSupabase(): Promise<
+  { portfolio: PaperPortfolio; positions: PaperPosition[] } | null
+> {
+  if (!supabase) return null;
+  try {
+    const [portRes, posRes] = await Promise.all([
+      supabase.from("paper_portfolios")
+        .select("cash_balance, initial_balance")
+        .eq("user_id", DEMO_USER).single(),
+      supabase.from("paper_positions")
+        .select("*")
+        .eq("user_id", DEMO_USER).eq("status", "OPEN")
+        .order("opened_at", { ascending: false }),
+    ]);
+    if (portRes.error || !portRes.data) return null;
+    return {
+      portfolio: portRes.data as PaperPortfolio,
+      positions: (posRes.data ?? []) as PaperPosition[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Refresh current_price for display only.
+ *
+ * The API route persists prices server-side; on the static export we cannot
+ * write, so prices are refreshed in memory. Without this, P&L is frozen at
+ * whatever current_price was last written by a local dev run.
+ */
+async function withLivePrices(positions: PaperPosition[]): Promise<PaperPosition[]> {
+  if (!positions.length) return positions;
+  const byMarket = new Map<string, string[]>();
+  for (const p of positions) {
+    const list = byMarket.get(p.market) ?? [];
+    list.push(p.symbol);
+    byMarket.set(p.market, list);
+  }
+  const priced = new Map<string, number>();
+  await Promise.allSettled(
+    Array.from(byMarket, async ([market, symbols]) => {
+      const map = await fetchLivePrices(symbols, market as Market);
+      for (const [sym, lp] of map) priced.set(`${market}:${sym}`, lp.price);
+    })
+  );
+  if (!priced.size) return positions;
+  return positions.map((p) => {
+    const live = priced.get(`${p.market}:${p.symbol}`);
+    return live && live > 0 ? { ...p, current_price: live } : p;
+  });
 }
 
 export function usePaperPortfolio(): UsePaperPortfolioReturn {
   const [portfolio, setPortfolio] = useState<PaperPortfolio | null>(null);
   const [positions, setPositions] = useState<PaperPosition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState<PortfolioSource>("mock");
 
   const refresh = useCallback(async () => {
+    // 1. API route — dev only, but it also persists refreshed prices.
     try {
       const res = await fetch("/api/paper-trades");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.portfolio) setPortfolio(data.portfolio);
-      if (data.positions) setPositions(data.positions);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.portfolio) {
+          setPortfolio(data.portfolio);
+          setPositions(data.positions ?? []);
+          setSource("api");
+          setLoading(false);
+          return;
+        }
+      }
     } catch {
-      // API unavailable — keep mock data
-    } finally {
-      setLoading(false);
+      // fall through to the direct read
     }
+
+    // 2. Direct Supabase read — this is the path on GitHub Pages.
+    const direct = await loadFromSupabase();
+    if (direct) {
+      setPortfolio(direct.portfolio);
+      setPositions(await withLivePrices(direct.positions));
+      setSource("supabase");
+      setLoading(false);
+      return;
+    }
+
+    // 3. Neither available — computeStats falls back to MOCK_PORTFOLIO.
+    setSource("mock");
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -163,5 +262,5 @@ export function usePaperPortfolio(): UsePaperPortfolioReturn {
 
   const stats = computeStats(portfolio, positions);
 
-  return { portfolio, positions, stats, loading, refresh, openTrade, closeTrade };
+  return { portfolio, positions, stats, loading, source, refresh, openTrade, closeTrade };
 }
