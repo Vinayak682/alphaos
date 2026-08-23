@@ -1,4 +1,5 @@
 "use client";
+import BacktestPanel from "@/components/strategies/BacktestPanel";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -205,6 +206,8 @@ export default function StrategiesPage() {
           R:R and returns are illustrative, not backtested results
         </p>
       </motion.div>
+
+      <BacktestPanel />
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
