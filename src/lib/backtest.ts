@@ -749,3 +749,44 @@ export function runPortfolioBacktest(
     })),
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WALK-FORWARD RESULT
+//
+// Recorded because it is the only test here that was not tuned on its own data,
+// and it overturned the in-sample conclusion.
+//
+// Protocol: rank five portfolio variants on 2006-2015 by Sharpe, then run the
+// winner ONCE on 2016-2026 and accept the result. 10 US symbols, equal-weight,
+// each sleeve trend-gated, costs 5bps per side.
+//
+//   In-sample winner : slowexit, Sharpe 0.87 vs buy & hold 0.60  (+0.27 edge)
+//   Out-of-sample    : Sharpe 1.07 vs buy & hold 1.17            (-0.10 edge)
+//
+// The edge did not survive. Across all five variants the correlation between
+// in-sample and out-of-sample edge was +0.19 — in-sample ranking carried almost
+// no information about out-of-sample ranking.
+//
+// What DID generalise, without exception: drawdown reduction. Every variant
+// roughly halved it out-of-sample (4.6%-23.7% against buy & hold's 50.0%).
+//
+// Conclusion: these rules are a risk-management tool, not an alpha source.
+// Any single-window backtest suggesting otherwise — including the ones this
+// page renders — should be read as an artifact of that window.
+// ─────────────────────────────────────────────────────────────────────────────
+export const WALK_FORWARD = {
+  tunedOn: "2006–2015",
+  testedOn: "2016–2026",
+  chosenVariant: "slowexit",
+  inSampleSharpe: 0.87,
+  inSampleBenchmarkSharpe: 0.60,
+  outOfSampleSharpe: 1.07,
+  outOfSampleBenchmarkSharpe: 1.17,
+  outOfSampleReturnPct: 121.2,
+  outOfSampleBenchmarkReturnPct: 3587.6,
+  outOfSampleMaxDdPct: 11.7,
+  outOfSampleBenchmarkMaxDdPct: 50.0,
+  variantsWithPositiveOosEdge: 2,
+  variantsTested: 5,
+  edgeCorrelation: 0.19,
+} as const;

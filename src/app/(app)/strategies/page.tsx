@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn, formatPct } from "@/lib/utils";
 import { useStrategyBacktests } from "@/hooks/useStrategyBacktests";
 import type { BacktestResult } from "@/lib/backtest";
-import { Zap, ChevronDown, BarChart2 } from "lucide-react";
+import { WALK_FORWARD as WF } from "@/lib/backtest";
+import { Zap, ChevronDown, BarChart2, ShieldAlert } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
@@ -102,33 +103,41 @@ function StrategyCard({ s, delay, bt, btLoading }: { s: typeof STRATEGIES[0]; de
 
         {bt ? (
           <>
+            {/* Drawdown leads, because it is the only property that survived
+                walk-forward. Return is shown honestly beside its benchmark. */}
             <div className="grid grid-cols-3 gap-2 mb-2">
               {[
-                { label: "Win Rate", value: `${bt.metrics.winRate.toFixed(0)}%`, color: "text-foreground" },
-                { label: "Trades",   value: String(bt.metrics.tradeCount),        color: "text-foreground" },
-                { label: "Max DD",   value: `−${bt.metrics.maxDrawdownPct.toFixed(0)}%`, color: "loss" },
-              ].map(({ label, value, color }) => (
+                { label: "Max DD",   value: `−${bt.metrics.maxDrawdownPct.toFixed(0)}%`,
+                  color: bt.metrics.maxDrawdownPct < bt.metrics.buyHoldMaxDdPct ? "gain" : "loss",
+                  sub: `B&H −${bt.metrics.buyHoldMaxDdPct.toFixed(0)}%` },
+                { label: "Win Rate", value: `${bt.metrics.winRate.toFixed(0)}%`, color: "text-foreground",
+                  sub: `${bt.metrics.tradeCount} trades` },
+                { label: "Sharpe",   value: bt.metrics.sharpe != null ? bt.metrics.sharpe.toFixed(2) : "—",
+                  color: "text-foreground", sub: "annualised" },
+              ].map(({ label, value, color, sub }) => (
                 <div key={label} className="text-center p-2 bg-muted/40 rounded-lg">
                   <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</p>
                   <p className={cn("mono font-bold text-sm mt-0.5", color)}>{value}</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">{sub}</p>
                 </div>
               ))}
             </div>
-            {/* The comparison that matters — and it is often unflattering. */}
-            <div className="flex items-center justify-between text-[11px] mb-3 px-1">
-              <span className="text-muted-foreground">
-                {bt.symbol} · {bt.metrics.years.toFixed(1)}y
-              </span>
+            <div className="flex items-center justify-between text-[11px] mb-1 px-1">
+              <span className="text-muted-foreground">{bt.symbol} · {bt.metrics.years.toFixed(1)}y</span>
               <span className="flex items-center gap-2">
                 <span className={cn("mono font-semibold", bt.metrics.totalReturnPct >= 0 ? "gain" : "loss")}>
                   {formatPct(bt.metrics.totalReturnPct)}
                 </span>
-                <span className="text-muted-foreground">vs buy &amp; hold</span>
+                <span className="text-muted-foreground">vs</span>
                 <span className={cn("mono", bt.metrics.buyHoldReturnPct >= 0 ? "gain" : "loss")}>
                   {formatPct(bt.metrics.buyHoldReturnPct)}
                 </span>
               </span>
             </div>
+            <p className="text-[10px] text-yellow-400/80 mb-3 px-1">
+              Single window — did not survive walk-forward. Treat the drawdown figure as the
+              durable one.
+            </p>
           </>
         ) : (
           <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 mb-3">
@@ -206,6 +215,55 @@ export default function StrategiesPage() {
         <p className="text-xs text-muted-foreground mt-0.5">
           6 built-in strategy definitions · performance figures are measured by the
           backtest engine below, or omitted where the rules cannot be tested
+        </p>
+      </motion.div>
+
+      {/* The one result on this page that was not tuned on its own data. */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <ShieldAlert className="w-4 h-4 text-yellow-400" />
+          <h2 className="text-sm font-semibold font-heading text-yellow-400">
+            Walk-forward result — these are risk tools, not alpha
+          </h2>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Five portfolio variants were ranked on {WF.tunedOn}, and the winner run
+          <strong className="text-foreground"> once</strong> on {WF.testedOn}. It is the only test here
+          not evaluated on the data that selected it — and it overturned the in-sample conclusion.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+          <div className="bg-card/60 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">In-sample edge</p>
+            <p className="mono font-bold text-sm gain mt-0.5">
+              +{(WF.inSampleSharpe - WF.inSampleBenchmarkSharpe).toFixed(2)} Sharpe
+            </p>
+            <p className="text-[10px] text-muted-foreground">{WF.inSampleSharpe} vs {WF.inSampleBenchmarkSharpe}</p>
+          </div>
+          <div className="bg-card/60 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Out-of-sample edge</p>
+            <p className="mono font-bold text-sm loss mt-0.5">
+              {(WF.outOfSampleSharpe - WF.outOfSampleBenchmarkSharpe).toFixed(2)} Sharpe
+            </p>
+            <p className="text-[10px] text-muted-foreground">{WF.outOfSampleSharpe} vs {WF.outOfSampleBenchmarkSharpe} — did not hold</p>
+          </div>
+          <div className="bg-card/60 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Drawdown, out-of-sample</p>
+            <p className="mono font-bold text-sm gain mt-0.5">−{WF.outOfSampleMaxDdPct}%</p>
+            <p className="text-[10px] text-muted-foreground">buy &amp; hold −{WF.outOfSampleBenchmarkMaxDdPct}% — this DID hold</p>
+          </div>
+          <div className="bg-card/60 rounded-lg px-3 py-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Edge correlation</p>
+            <p className="mono font-bold text-sm mt-0.5">+{WF.edgeCorrelation}</p>
+            <p className="text-[10px] text-muted-foreground">in-sample rank barely predicts out-of-sample</p>
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Only {WF.variantsWithPositiveOosEdge} of {WF.variantsTested} variants held a positive
+          out-of-sample edge, and the one in-sample selection picked was not among them. What
+          generalised without exception was drawdown reduction — every variant roughly halved it.
+          <strong className="text-foreground"> Read every single-window backtest below as an artifact
+          of its window, not as evidence of edge.</strong>
         </p>
       </motion.div>
 
