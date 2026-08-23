@@ -770,23 +770,44 @@ export function runPortfolioBacktest(
 // What DID generalise, without exception: drawdown reduction. Every variant
 // roughly halved it out-of-sample (4.6%-23.7% against buy & hold's 50.0%).
 //
+// REPLICATED ON CRYPTO. Same protocol, 7 pairs, tuned 2018-2022 (a full cycle
+// including two crashes), tested once on 2023-2026:
+//   In-sample winner : scaled, Sharpe 1.19 vs buy & hold 1.10  (+0.09 edge)
+//   Out-of-sample    : Sharpe 0.51 vs buy & hold 0.71          (-0.21 edge)
+// Zero of five variants held a positive out-of-sample edge, versus two of five
+// on equities. Drawdown reduction held again: 16.0%-36.4% against 53.1%.
+//
+//   asset class   in-sample edge   out-of-sample edge   drawdown saved
+//   equities            +0.27            -0.10              38.4pp
+//   crypto              +0.09            -0.21              16.7pp
+//
+// Two independent asset classes, different decades, different volatility
+// regimes, same outcome: the return edge is an artifact of the tuning window,
+// the drawdown reduction is real.
+//
 // Conclusion: these rules are a risk-management tool, not an alpha source.
 // Any single-window backtest suggesting otherwise — including the ones this
 // page renders — should be read as an artifact of that window.
 // ─────────────────────────────────────────────────────────────────────────────
 export const WALK_FORWARD = {
-  tunedOn: "2006–2015",
-  testedOn: "2016–2026",
-  chosenVariant: "slowexit",
-  inSampleSharpe: 0.87,
-  inSampleBenchmarkSharpe: 0.60,
-  outOfSampleSharpe: 1.07,
-  outOfSampleBenchmarkSharpe: 1.17,
-  outOfSampleReturnPct: 121.2,
-  outOfSampleBenchmarkReturnPct: 3587.6,
-  outOfSampleMaxDdPct: 11.7,
-  outOfSampleBenchmarkMaxDdPct: 50.0,
-  variantsWithPositiveOosEdge: 2,
+  equities: {
+    universe: "10 US equities",
+    tunedOn: "2006–2015", testedOn: "2016–2026",
+    chosenVariant: "slowexit",
+    inSampleEdge: 0.27, outOfSampleEdge: -0.10,
+    outOfSampleSharpe: 1.07, outOfSampleBenchmarkSharpe: 1.17,
+    outOfSampleMaxDdPct: 11.7, outOfSampleBenchmarkMaxDdPct: 50.0,
+    variantsWithPositiveOosEdge: 2,
+  },
+  crypto: {
+    universe: "7 crypto pairs",
+    tunedOn: "2018–2022", testedOn: "2023–2026",
+    chosenVariant: "scaled",
+    inSampleEdge: 0.09, outOfSampleEdge: -0.21,
+    outOfSampleSharpe: 0.51, outOfSampleBenchmarkSharpe: 0.71,
+    outOfSampleMaxDdPct: 36.4, outOfSampleBenchmarkMaxDdPct: 53.1,
+    variantsWithPositiveOosEdge: 0,
+  },
   variantsTested: 5,
   edgeCorrelation: 0.19,
 } as const;

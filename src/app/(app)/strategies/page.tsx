@@ -218,52 +218,60 @@ export default function StrategiesPage() {
         </p>
       </motion.div>
 
-      {/* The one result on this page that was not tuned on its own data. */}
+      {/* The only tests here not evaluated on the data that selected them. */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
           <ShieldAlert className="w-4 h-4 text-yellow-400" />
           <h2 className="text-sm font-semibold font-heading text-yellow-400">
-            Walk-forward result — these are risk tools, not alpha
+            Walk-forward, replicated on two asset classes — these are risk tools, not alpha
           </h2>
         </div>
         <p className="text-xs text-muted-foreground mb-3">
-          Five portfolio variants were ranked on {WF.tunedOn}, and the winner run
-          <strong className="text-foreground"> once</strong> on {WF.testedOn}. It is the only test here
-          not evaluated on the data that selected it — and it overturned the in-sample conclusion.
+          Five portfolio variants ranked on a tuning window, then the winner run
+          <strong className="text-foreground"> once</strong> on data it never saw. Run separately on
+          equities and on crypto — different decades, different volatility regimes, same outcome.
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-          <div className="bg-card/60 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">In-sample edge</p>
-            <p className="mono font-bold text-sm gain mt-0.5">
-              +{(WF.inSampleSharpe - WF.inSampleBenchmarkSharpe).toFixed(2)} Sharpe
-            </p>
-            <p className="text-[10px] text-muted-foreground">{WF.inSampleSharpe} vs {WF.inSampleBenchmarkSharpe}</p>
-          </div>
-          <div className="bg-card/60 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Out-of-sample edge</p>
-            <p className="mono font-bold text-sm loss mt-0.5">
-              {(WF.outOfSampleSharpe - WF.outOfSampleBenchmarkSharpe).toFixed(2)} Sharpe
-            </p>
-            <p className="text-[10px] text-muted-foreground">{WF.outOfSampleSharpe} vs {WF.outOfSampleBenchmarkSharpe} — did not hold</p>
-          </div>
-          <div className="bg-card/60 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Drawdown, out-of-sample</p>
-            <p className="mono font-bold text-sm gain mt-0.5">−{WF.outOfSampleMaxDdPct}%</p>
-            <p className="text-[10px] text-muted-foreground">buy &amp; hold −{WF.outOfSampleBenchmarkMaxDdPct}% — this DID hold</p>
-          </div>
-          <div className="bg-card/60 rounded-lg px-3 py-2">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Edge correlation</p>
-            <p className="mono font-bold text-sm mt-0.5">+{WF.edgeCorrelation}</p>
-            <p className="text-[10px] text-muted-foreground">in-sample rank barely predicts out-of-sample</p>
-          </div>
+
+        <div className="overflow-x-auto mb-3">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] text-muted-foreground uppercase tracking-wide border-b border-yellow-500/20">
+                <th className="text-left font-medium py-1.5">Universe</th>
+                <th className="text-left font-medium">Tuned</th>
+                <th className="text-left font-medium">Tested</th>
+                <th className="text-right font-medium">In-sample edge</th>
+                <th className="text-right font-medium">Out-of-sample edge</th>
+                <th className="text-right font-medium">Drawdown saved</th>
+                <th className="text-right font-medium">Variants w/ edge</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[WF.equities, WF.crypto].map((w) => (
+                <tr key={w.universe} className="border-b border-yellow-500/10">
+                  <td className="py-1.5 font-medium">{w.universe}</td>
+                  <td className="mono text-[11px] text-muted-foreground">{w.tunedOn}</td>
+                  <td className="mono text-[11px] text-muted-foreground">{w.testedOn}</td>
+                  <td className="text-right mono gain">+{w.inSampleEdge.toFixed(2)}</td>
+                  <td className="text-right mono loss font-semibold">{w.outOfSampleEdge.toFixed(2)}</td>
+                  <td className="text-right mono gain">
+                    +{(w.outOfSampleBenchmarkMaxDdPct - w.outOfSampleMaxDdPct).toFixed(1)}pp
+                  </td>
+                  <td className="text-right mono text-muted-foreground">
+                    {w.variantsWithPositiveOosEdge}/{WF.variantsTested}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+
         <p className="text-[11px] text-muted-foreground">
-          Only {WF.variantsWithPositiveOosEdge} of {WF.variantsTested} variants held a positive
-          out-of-sample edge, and the one in-sample selection picked was not among them. What
-          generalised without exception was drawdown reduction — every variant roughly halved it.
-          <strong className="text-foreground"> Read every single-window backtest below as an artifact
-          of its window, not as evidence of edge.</strong>
+          Both universes showed a positive edge in-sample and a <strong className="text-foreground">negative
+          one out-of-sample</strong>. On crypto, zero of five variants held any edge at all. What generalised
+          in both, without exception, was drawdown reduction.
+          <strong className="text-foreground"> Read every single-window backtest below as an artifact of its
+          window, not as evidence of edge.</strong>
         </p>
       </motion.div>
 
