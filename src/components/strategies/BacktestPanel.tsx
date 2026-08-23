@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Line, ComposedChart,
 } from "recharts";
-import { Play, Loader2, AlertTriangle, Info, Layers } from "lucide-react";
+import { Play, Loader2, AlertTriangle, Info, Layers, Briefcase } from "lucide-react";
 import { cn, formatPct } from "@/lib/utils";
 import { useBacktest } from "@/hooks/useBacktest";
 import { RULE_SPECS, DEFAULT_CONFIG } from "@/lib/backtest";
@@ -54,7 +54,7 @@ export default function BacktestPanel() {
   const [symbol, setSymbol] = useState("AAPL");
   const [periodId, setPeriodId] = useState("recent");
   const period = PERIODS.find((p) => p.id === periodId)!;
-  const { result, sweep, sweepSkipped, sweepProgress, running, error, run, runSweep } = useBacktest();
+  const { result, sweep, sweepSkipped, sweepProgress, portfolio, running, error, run, runSweep, runPortfolio } = useBacktest();
   const spec = RULE_SPECS.find((s) => s.id === specId)!;
 
   // Normalise buy & hold onto the same starting equity so the two lines compare.
@@ -118,6 +118,11 @@ export default function BacktestPanel() {
             <Layers className="w-3 h-3" />
             {running && sweepProgress ? `${sweepProgress.done}/${sweepProgress.total}…` : `Sweep all ${SYMBOLS.length}`}
           </button>
+          <button onClick={() => runPortfolio(specId, SYMBOLS, period.window)} disabled={running}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-semibold hover:bg-blue-500/25 disabled:opacity-50 transition-colors">
+            <Briefcase className="w-3 h-3" />
+            Portfolio mode
+          </button>
         </div>
 
         {period.id !== "recent" && (
@@ -149,6 +154,88 @@ export default function BacktestPanel() {
             <p className="text-xs text-destructive">{error}</p>
           </div>
         )}
+
+        {portfolio && (() => {
+          const pm = portfolio.metrics;
+          const benchMap = new Map(portfolio.benchmark.map((b) => [b.date, b.value]));
+          const data = portfolio.equity.map((e) => ({ date: e.date, equity: e.value, bench: benchMap.get(e.date) ?? null }));
+          const ddSaved = pm.benchmarkMaxDdPct - pm.maxDrawdownPct;
+          return (
+            <div className="space-y-3">
+              <div className="bg-blue-500/10 border border-blue-500/25 rounded-lg px-3 py-2">
+                <p className="text-xs font-medium text-blue-400">
+                  Equal-weight basket of {portfolio.symbols.length}, each sleeve gated by its own signal
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {portfolio.from} → {portfolio.to} · benchmark is equal-weight buy &amp; hold of the
+                  identical basket over the identical window · {pm.rebalances} rebalances, costs applied to each
+                </p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Metric label="Portfolio return" value={formatPct(pm.totalReturnPct)}
+                  tone={pm.totalReturnPct >= 0 ? "gain" : "loss"}
+                  sub={`CAGR ${pm.cagrPct != null ? formatPct(pm.cagrPct) : "—"} over ${pm.years.toFixed(1)}y`} />
+                <Metric label="Basket buy & hold" value={formatPct(pm.benchmarkReturnPct)}
+                  tone={pm.benchmarkReturnPct >= 0 ? "gain" : "loss"}
+                  sub={pm.totalReturnPct >= pm.benchmarkReturnPct ? "portfolio ahead" : "portfolio behind"} />
+                <Metric label="Max drawdown" value={`−${pm.maxDrawdownPct.toFixed(1)}%`}
+                  tone={pm.maxDrawdownPct < pm.benchmarkMaxDdPct ? "gain" : "loss"}
+                  sub={`basket −${pm.benchmarkMaxDdPct.toFixed(1)}% · ${ddSaved >= 0 ? "saved" : "worse by"} ${Math.abs(ddSaved).toFixed(1)}pp`} />
+                <Metric label="Sharpe" value={pm.sharpe != null ? pm.sharpe.toFixed(2) : "—"}
+                  sub={`avg exposure ${pm.avgExposurePct.toFixed(0)}%`} />
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={data}>
+                  <defs>
+                    <linearGradient id="pfFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4FA3FF" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#4FA3FF" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="date" tick={AXIS} minTickGap={60} tickFormatter={(d: string) => d.slice(0, 7)} />
+                  <YAxis tick={AXIS} width={55} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip contentStyle={TOOLTIP} formatter={money} />
+                  <Area type="monotone" dataKey="equity" stroke="#4FA3FF" fill="url(#pfFill)" strokeWidth={1.5} name="equity" />
+                  <Line type="monotone" dataKey="bench" stroke="rgba(255,255,255,0.35)" dot={false} strokeWidth={1} strokeDasharray="4 3" name="bench" />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className="w-2.5 h-0.5 rounded" style={{ background: "#4FA3FF" }} />Trend-gated portfolio
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className="w-2.5 h-0.5 rounded bg-white/35" />Equal-weight buy &amp; hold
+                </span>
+              </div>
+              <div className="overflow-x-auto max-h-56 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="text-[10px] text-muted-foreground uppercase tracking-wide border-b border-border">
+                      <th className="text-left font-medium py-1.5">Sleeve</th>
+                      <th className="text-right font-medium">Net P&amp;L (share)</th>
+                      <th className="text-right font-medium">Time invested</th>
+                      <th className="text-right font-medium">Rebalances</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...portfolio.sleeves].sort((a, b) => b.contributionPct - a.contributionPct).map((s) => (
+                      <tr key={s.symbol} className="border-b border-border/40 hover:bg-muted/30">
+                        <td className="py-1.5 mono font-medium">{s.symbol}</td>
+                        <td className={cn("text-right mono", s.pnl >= 0 ? "gain" : "loss")}>
+                          {s.pnl >= 0 ? "+" : "−"}${Math.abs(s.pnl).toFixed(0)}
+                          <span className="text-muted-foreground ml-1">({s.contributionPct >= 0 ? "+" : ""}{s.contributionPct.toFixed(0)}%)</span>
+                        </td>
+                        <td className="text-right mono text-muted-foreground">{s.exposurePct.toFixed(0)}%</td>
+                        <td className="text-right mono text-muted-foreground">{s.rebalances}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {sweep && sweep.length > 0 && (() => {
           const real = sweep.filter((r) => !r.degenerate);

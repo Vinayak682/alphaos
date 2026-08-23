@@ -15,8 +15,8 @@
 
 import { useState, useCallback } from "react";
 import {
-  runBacktest, RULE_SPECS, DEFAULT_CONFIG,
-  type Candle, type BacktestResult, type RuleSpec,
+  runBacktest, runPortfolioBacktest, RULE_SPECS, DEFAULT_CONFIG,
+  type Candle, type BacktestResult, type PortfolioResult, type RuleSpec,
 } from "@/lib/backtest";
 
 export interface Window { from?: string; to?: string }
@@ -110,12 +110,15 @@ export interface BacktestState {
   error: string | null;
   run: (specId: string, symbol: string, window?: Window) => Promise<void>;
   runSweep: (specId: string, symbols: string[], window?: Window) => Promise<void>;
+  runPortfolio: (specId: string, symbols: string[], window?: Window) => Promise<void>;
+  portfolio: PortfolioResult | null;
   reset: () => void;
 }
 
 export function useBacktest(): BacktestState {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioResult | null>(null);
   const [sweepSkipped, setSweepSkipped] = useState<SweepSkip[]>([]);
   const [sweepProgress, setSweepProgress] = useState<{ done: number; total: number } | null>(null);
   const [running, setRunning] = useState(false);
@@ -193,7 +196,56 @@ export function useBacktest(): BacktestState {
     setRunning(false);
   }, []);
 
-  const reset = useCallback(() => { setResult(null); setSweep(null); setSweepSkipped([]); setError(null); }, []);
+  /** All symbols as one equal-weight, trend-gated basket. */
+  const runPortfolio = useCallback(async (specId: string, symbols: string[], window?: Window) => {
+    const spec = RULE_SPECS.find((s) => s.id === specId);
+    if (!spec) { setError(`Unknown strategy spec "${specId}"`); return; }
 
-  return { result, sweep, sweepSkipped, sweepProgress, running, error, run, runSweep, reset };
+    setRunning(true); setError(null); setPortfolio(null); setSweep(null); setResult(null);
+    setSweepProgress({ done: 0, total: symbols.length });
+    const series: Record<string, Candle[]> = {};
+    const skipped: SweepSkip[] = [];
+    const bars = window?.from && window.from < "2015" ? 5000 : 2000;
+
+    for (let i = 0; i < symbols.length; i++) {
+      const sym = symbols[i];
+      try {
+        if (!isCrypto(sym) && !readCache(sym, bars) && i > 0) {
+          await new Promise((r) => setTimeout(r, 8000));
+        }
+        series[sym] = await fetchCandles(sym, bars);
+      } catch (e) {
+        skipped.push({ symbol: sym, reason: e instanceof Error ? e.message : "fetch failed" });
+      }
+      setSweepProgress({ done: i + 1, total: symbols.length });
+    }
+    setSweepSkipped(skipped);
+
+    // Sleeves are date-intersected, so one short series would truncate the whole
+    // basket. Drop anything that cannot cover the window rather than silently
+    // shortening everyone else's history.
+    const dropped: SweepSkip[] = [];
+    const lens = Object.entries(series).map(([s, c]) => [s, c.length] as const);
+    const maxLen = Math.max(...lens.map(([, n]) => n), 0);
+    // Sleeves are date-intersected, so ONE short series silently truncates the
+    // whole basket — 15 symbols including crypto collapsed a 7-year test to 1.9
+    // years because Binance only returns 1000 bars. Anything materially shorter
+    // than the longest series is dropped and reported.
+    for (const [s, n] of lens) {
+      if (n < maxLen * 0.9) {
+        delete series[s];
+        dropped.push({ symbol: s, reason: `${n} bars vs ${maxLen} — would truncate the basket` });
+      }
+    }
+    if (dropped.length) setSweepSkipped([...skipped, ...dropped]);
+
+    const res = runPortfolioBacktest(series, spec, DEFAULT_CONFIG, window);
+    if (!res) setError("Not enough overlapping history for a portfolio run");
+    setPortfolio(res);
+    setRunning(false);
+  }, []);
+
+  const reset = useCallback(() => { setResult(null); setSweep(null); setPortfolio(null); setSweepSkipped([]); setError(null); }, []);
+
+  return { result, sweep, sweepSkipped, sweepProgress, portfolio, running, error, run, runSweep, runPortfolio, reset };
 }
