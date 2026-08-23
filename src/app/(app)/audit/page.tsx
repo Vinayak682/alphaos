@@ -77,8 +77,8 @@ const FEATURES = [
   { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "LIVE",    detail: "Reads paper_positions directly from Supabase on Pages; demo rows only when nothing is readable, and badged DEMO" },
   { category: "Portfolio & Risk", feature: "Portfolio KPIs",      status: "LIVE",    detail: "Real balance: $100,234.62 total, $99,161.02 cash. NUMERIC-as-string coercion fixed the $0.00 total" },
   { category: "Portfolio & Risk", feature: "Equity Curve",        status: "FAKE",    detail: "8 hardcoded data points" },
-  { category: "Portfolio & Risk", feature: "Risk Index",          status: "STATIC",  detail: "Fixed model, now badged ILLUSTRATIVE MODEL in-page. The fake \"Updated 08:04 UAE\" timestamp is gone" },
-  { category: "Portfolio & Risk", feature: "Risk Radar",          status: "STATIC",  detail: "Fixed 6-dimension scores; 4 of 6 (volatility, sentiment, concentration, leverage) are computable from live data — not yet wired" },
+  { category: "Portfolio & Risk", feature: "Risk Index",          status: "LIVE",    detail: "Computed: SPY 30d realised vol + Fear&Greed + real concentration/exposure. Weights disclosed in-page" },
+  { category: "Portfolio & Risk", feature: "Risk Radar",          status: "LIVE",    detail: "4 of 6 dimensions computed live; Correlation and Geo Risk shown as unavailable rather than invented" },
   { category: "Portfolio & Risk", feature: "Live Quotes Page",   status: "LIVE",    detail: "/markets repointed from the stripped /api/quotes to the Edge Function — all 4 markets, badge derives from liveCount" },
   { category: "Portfolio & Risk", feature: "Market Overview Strip",status: "LIVE",    detail: "Was hardcoded and wrong on every tile. ADX/DFM + NIFTY 50 dropped rather than faked — no honest free source" },
   // ─ Infrastructure

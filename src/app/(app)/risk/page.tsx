@@ -1,6 +1,8 @@
 "use client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useRiskIndex, RISK_WEIGHTS } from "@/hooks/useRiskIndex";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 import { ShieldAlert, TrendingDown, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip,
@@ -101,22 +103,27 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { payl
 };
 
 export default function RiskPage() {
+  const risk = useRiskIndex();
+  const { positions } = usePaperPortfolio();
+  const positionCount = positions.length;
+  const RADAR_DATA = risk.dimensions.filter((d) => d.value !== null);
+
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         <h1 className="font-heading text-xl font-bold flex items-center gap-2">
           Risk Index
-          {/* Everything on this page is a fixed illustrative model, not a
-              measurement. The old subtitle read "Updated 08:04 UAE", a
-              hardcoded timestamp that never changed and so permanently implied
-              freshly computed data. */}
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
-            ILLUSTRATIVE MODEL
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+            ● COMPUTED
           </span>
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Fixed example scores — not computed from your positions, and not live.
-          The ranked table below is a watchlist illustration, not your holdings.
+          Weighted from live data · volatility {Math.round(RISK_WEIGHTS.volatility * 100)}% ·
+          concentration {Math.round(RISK_WEIGHTS.concentration * 100)}% ·
+          exposure {Math.round(RISK_WEIGHTS.exposure * 100)}% ·
+          sentiment {Math.round(RISK_WEIGHTS.sentiment * 100)}%
+          {risk.realisedVolPct != null && ` · SPY 30d vol ${risk.realisedVolPct.toFixed(1)}%`}
+          {risk.fearGreed != null && ` · Fear & Greed ${risk.fearGreed}`}
         </p>
       </motion.div>
 
@@ -133,12 +140,12 @@ export default function RiskPage() {
             <ShieldAlert className="w-4 h-4 text-primary" />
             <h2 className="text-sm font-semibold font-heading">Portfolio Risk Meter</h2>
           </div>
-          <RiskMeter value={RISK_INDEX} />
+          <RiskMeter value={risk.index ?? 0} />
           <div className="grid grid-cols-3 gap-3 w-full mt-2">
             {[
-              { label: "Open Positions", value: "10", color: "text-foreground" },
-              { label: "Max Drawdown", value: "−4.2%", color: "loss" },
-              { label: "Sharpe Ratio", value: "1.84", color: "gain" },
+              { label: "Open Positions", value: String(risk.dimensions[1].value != null ? positionCount : 0), color: "text-foreground" },
+              { label: "At Market", value: `${risk.investedPct.toFixed(1)}%`, color: "text-foreground" },
+              { label: "Band", value: risk.band, color: risk.band === "LOW" ? "gain" : risk.band === "HIGH" ? "loss" : "text-yellow-400" },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center p-2 bg-muted/40 rounded-lg">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
@@ -157,7 +164,12 @@ export default function RiskPage() {
         >
           <div className="flex items-center gap-2 mb-3">
             <Info className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold font-heading">6-Dimension Risk Radar</h2>
+            <h2 className="text-sm font-semibold font-heading">
+              Risk Radar
+              <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                {RADAR_DATA.length} of {risk.dimensions.length} dimensions computable
+              </span>
+            </h2>
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <RadarChart data={RADAR_DATA}>
@@ -184,13 +196,13 @@ export default function RiskPage() {
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: `${d.value}%`,
-                      background: d.value >= 60 ? "#FF3060" : d.value >= 40 ? "#F59E0B" : "#00FF88",
+                      width: `${d.value ?? 0}%`,
+                      background: (d.value ?? 0) >= 60 ? "#FF3060" : (d.value ?? 0) >= 40 ? "#F59E0B" : "#00FF88",
                     }}
                   />
                 </div>
-                <span className="text-[10px] text-muted-foreground">{d.dimension}</span>
-                <span className="text-[10px] mono font-medium ml-auto">{d.value}</span>
+                <span className="text-[10px] text-muted-foreground" title={d.basis}>{d.dimension}</span>
+                <span className="text-[10px] mono font-medium ml-auto">{Math.round(d.value ?? 0)}</span>
               </div>
             ))}
           </div>
@@ -206,7 +218,15 @@ export default function RiskPage() {
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
-          <h2 className="text-sm font-semibold font-heading">All Positions — Ranked by Risk</h2>
+          {/* This lists watchlist tickers, not holdings — it was headed
+              "All Positions" while the account held none of them. */}
+          <h2 className="text-sm font-semibold font-heading">
+            Watchlist — Ranked by Risk
+            <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+              illustrative scores · not your holdings
+              {positionCount > 0 && ` · you hold ${positionCount}`}
+            </span>
+          </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
