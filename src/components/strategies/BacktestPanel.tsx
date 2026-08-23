@@ -4,12 +4,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Line, ComposedChart,
 } from "recharts";
-import { Play, Loader2, AlertTriangle, Info } from "lucide-react";
+import { Play, Loader2, AlertTriangle, Info, Layers } from "lucide-react";
 import { cn, formatPct } from "@/lib/utils";
 import { useBacktest } from "@/hooks/useBacktest";
 import { RULE_SPECS, DEFAULT_CONFIG } from "@/lib/backtest";
 
-const SYMBOLS = ["AAPL", "NVDA", "MSFT", "SPY", "TSLA", "META", "GOOGL", "BTCUSDT", "ETHUSDT"];
+// Deliberately mixed: mega-cap tech, an index, a bank, energy, a defensive, and
+// crypto. A universe of only 2019-2026 US tech would flatter buy & hold and
+// tell you nothing about the rules.
+const SYMBOLS = [
+  "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA",
+  "SPY", "QQQ", "JPM", "XOM", "KO",
+  "BTCUSDT", "ETHUSDT", "SOLUSDT",
+];
 
 const AXIS = { fill: "rgba(255,255,255,0.4)", fontSize: 10, fontFamily: "var(--font-mono)" };
 const TOOLTIP = {
@@ -39,7 +46,7 @@ function Metric({ label, value, tone, sub }: {
 export default function BacktestPanel() {
   const [specId, setSpecId] = useState(RULE_SPECS[0].id);
   const [symbol, setSymbol] = useState("AAPL");
-  const { result, running, error, run } = useBacktest();
+  const { result, sweep, sweepProgress, running, error, run, runSweep } = useBacktest();
   const spec = RULE_SPECS.find((s) => s.id === specId)!;
 
   // Normalise buy & hold onto the same starting equity so the two lines compare.
@@ -91,6 +98,11 @@ export default function BacktestPanel() {
             {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
             {running ? "Running…" : "Run Backtest"}
           </button>
+          <button onClick={() => runSweep(specId, SYMBOLS)} disabled={running}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-muted border border-border text-xs font-semibold hover:bg-muted/70 disabled:opacity-50 transition-colors">
+            <Layers className="w-3 h-3" />
+            {running && sweepProgress ? `${sweepProgress.done}/${sweepProgress.total}` : `Sweep all ${SYMBOLS.length}`}
+          </button>
         </div>
 
         {/* What this spec does and does not model */}
@@ -110,6 +122,73 @@ export default function BacktestPanel() {
             <p className="text-xs text-destructive">{error}</p>
           </div>
         )}
+
+        {sweep && sweep.length > 0 && (() => {
+          const real = sweep.filter((r) => !r.degenerate);
+          const beats = real.filter((r) => r.beat);
+          const genuine = beats.filter((r) => r.buyHoldPct > 0);
+          const med = (a: number[]) => {
+            const s = [...a].sort((x, y) => x - y);
+            return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : 0;
+          };
+          return (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Metric label="Beat buy & hold" value={`${beats.length}/${real.length}`}
+                  tone={beats.length > real.length / 2 ? "gain" : "loss"} sub="across all symbols" />
+                <Metric label="In a rising market" value={String(genuine.length)}
+                  sub="the only meaningful wins" />
+                <Metric label="Median return" value={formatPct(med(real.map((r) => r.returnPct)))}
+                  tone={med(real.map((r) => r.returnPct)) >= 0 ? "gain" : "loss"} sub="strategy" />
+                <Metric label="Median buy & hold" value={formatPct(med(real.map((r) => r.buyHoldPct)))}
+                  sub="same windows" />
+              </div>
+              <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-card">
+                    <tr className="text-[10px] text-muted-foreground uppercase tracking-wide border-b border-border">
+                      <th className="text-left font-medium py-1.5">Symbol</th>
+                      <th className="text-right font-medium">Strategy</th>
+                      <th className="text-right font-medium">Buy &amp; hold</th>
+                      <th className="text-right font-medium">Trades</th>
+                      <th className="text-right font-medium">Win%</th>
+                      <th className="text-right font-medium">Max DD</th>
+                      <th className="text-left font-medium pl-3">Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...sweep].sort((a, b) => b.returnPct - a.returnPct).map((r) => (
+                      <tr key={r.symbol} className="border-b border-border/40 hover:bg-muted/30">
+                        <td className="py-1.5 mono font-medium">{r.symbol}</td>
+                        <td className={cn("text-right mono", r.returnPct >= 0 ? "gain" : "loss")}>{formatPct(r.returnPct)}</td>
+                        <td className={cn("text-right mono", r.buyHoldPct >= 0 ? "gain" : "loss")}>{formatPct(r.buyHoldPct)}</td>
+                        <td className="text-right mono text-muted-foreground">{r.trades}</td>
+                        <td className="text-right mono text-muted-foreground">{r.winRate.toFixed(0)}</td>
+                        <td className="text-right mono loss">−{r.maxDdPct.toFixed(0)}%</td>
+                        <td className="pl-3 text-[11px]">
+                          {r.degenerate
+                            ? <span className="text-muted-foreground">never traded</span>
+                            : r.beat
+                              ? (r.buyHoldPct > 0
+                                  ? <span className="gain font-medium">beat</span>
+                                  : <span className="text-yellow-400">avoided a decline</span>)
+                              : <span className="text-muted-foreground">behind</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-muted-foreground flex items-start gap-1.5">
+                <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                Two verdicts are not edges. &quot;Never traded&quot; means the rules never fired and cash
+                simply outperformed a falling asset. &quot;Avoided a decline&quot; means buy &amp; hold was
+                negative, so staying out won by default. Only wins in a rising market suggest the
+                rules add anything.
+              </p>
+            </div>
+          );
+        })()}
 
         <AnimatePresence>
           {result && m && (

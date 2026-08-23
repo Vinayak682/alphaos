@@ -84,16 +84,33 @@ async function fetchCandles(symbol: string, bars = 2000): Promise<Candle[]> {
   return out;
 }
 
+export interface SweepRow {
+  symbol: string;
+  returnPct: number;
+  buyHoldPct: number;
+  trades: number;
+  winRate: number;
+  maxDdPct: number;
+  beat: boolean;
+  /** A "win" with no trades is cash sitting out a decline, not performance. */
+  degenerate: boolean;
+}
+
 export interface BacktestState {
   result: BacktestResult | null;
+  sweep: SweepRow[] | null;
+  sweepProgress: { done: number; total: number } | null;
   running: boolean;
   error: string | null;
   run: (specId: string, symbol: string) => Promise<void>;
+  runSweep: (specId: string, symbols: string[]) => Promise<void>;
   reset: () => void;
 }
 
 export function useBacktest(): BacktestState {
   const [result, setResult] = useState<BacktestResult | null>(null);
+  const [sweep, setSweep] = useState<SweepRow[] | null>(null);
+  const [sweepProgress, setSweepProgress] = useState<{ done: number; total: number } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,7 +136,42 @@ export function useBacktest(): BacktestState {
     }
   }, []);
 
-  const reset = useCallback(() => { setResult(null); setError(null); }, []);
+  /**
+   * Same spec across many symbols. One symbol is an anecdote; the aggregate is
+   * the only thing that says whether a rule set has an edge.
+   */
+  const runSweep = useCallback(async (specId: string, symbols: string[]) => {
+    const spec = RULE_SPECS.find((s) => s.id === specId);
+    if (!spec) { setError(`Unknown strategy spec "${specId}"`); return; }
 
-  return { result, running, error, run, reset };
+    setRunning(true); setError(null); setSweep(null); setResult(null);
+    setSweepProgress({ done: 0, total: symbols.length });
+    const rows: SweepRow[] = [];
+    for (let i = 0; i < symbols.length; i++) {
+      const sym = symbols[i];
+      try {
+        const c = await fetchCandles(sym);
+        const r = runBacktest(c, spec, sym, DEFAULT_CONFIG);
+        if (r) {
+          rows.push({
+            symbol: sym,
+            returnPct: r.metrics.totalReturnPct,
+            buyHoldPct: r.metrics.buyHoldReturnPct,
+            trades: r.metrics.tradeCount,
+            winRate: r.metrics.winRate,
+            maxDdPct: r.metrics.maxDrawdownPct,
+            beat: r.metrics.totalReturnPct > r.metrics.buyHoldReturnPct,
+            degenerate: r.metrics.tradeCount === 0,
+          });
+        }
+      } catch { /* skip a symbol rather than abort the sweep */ }
+      setSweepProgress({ done: i + 1, total: symbols.length });
+    }
+    setSweep(rows);
+    setRunning(false);
+  }, []);
+
+  const reset = useCallback(() => { setResult(null); setSweep(null); setError(null); }, []);
+
+  return { result, sweep, sweepProgress, running, error, run, runSweep, reset };
 }
