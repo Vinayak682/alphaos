@@ -43,9 +43,17 @@ function Metric({ label, value, tone, sub }: {
   );
 }
 
+const PERIODS = [
+  { id: "recent", label: "2019–2026 (bull run)",  window: undefined as { from?: string; to?: string } | undefined },
+  { id: "gfc",    label: "2006–2010 (GFC)",       window: { from: "2006-01-01", to: "2010-12-31" } },
+  { id: "all",    label: "Longest available",     window: { from: "2006-01-01" } },
+];
+
 export default function BacktestPanel() {
   const [specId, setSpecId] = useState(RULE_SPECS[0].id);
   const [symbol, setSymbol] = useState("AAPL");
+  const [periodId, setPeriodId] = useState("recent");
+  const period = PERIODS.find((p) => p.id === periodId)!;
   const { result, sweep, sweepSkipped, sweepProgress, running, error, run, runSweep } = useBacktest();
   const spec = RULE_SPECS.find((s) => s.id === specId)!;
 
@@ -93,18 +101,31 @@ export default function BacktestPanel() {
               {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          <button onClick={() => run(specId, symbol)} disabled={running}
+          <div>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-1">Period</label>
+            <select value={periodId} onChange={(e) => setPeriodId(e.target.value)}
+              className="bg-muted border border-border rounded-lg px-3 py-1.5 text-xs">
+              {PERIODS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
+          <button onClick={() => run(specId, symbol, period.window)} disabled={running}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-black text-xs font-bold hover:bg-primary/90 disabled:opacity-50 transition-colors">
             {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
             {running ? "Running…" : "Run Backtest"}
           </button>
-          <button onClick={() => runSweep(specId, SYMBOLS)} disabled={running}
+          <button onClick={() => runSweep(specId, SYMBOLS, period.window)} disabled={running}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-muted border border-border text-xs font-semibold hover:bg-muted/70 disabled:opacity-50 transition-colors">
             <Layers className="w-3 h-3" />
             {running && sweepProgress ? `${sweepProgress.done}/${sweepProgress.total}…` : `Sweep all ${SYMBOLS.length}`}
           </button>
         </div>
 
+        {period.id !== "recent" && (
+          <p className="text-[10px] text-yellow-400/90 -mt-1">
+            Crypto did not exist before 2017 — BTCUSDT/ETHUSDT/SOLUSDT will be skipped
+            and listed as such rather than silently dropped.
+          </p>
+        )}
         <p className="text-[10px] text-muted-foreground -mt-1">
           A cold sweep is paced at ~8s per uncached equity symbol to stay inside
           Twelve Data&apos;s 8 requests/minute limit — roughly 90s the first time,
@@ -224,8 +245,9 @@ export default function BacktestPanel() {
                 <Metric label="CAGR" value={m.cagrPct != null ? formatPct(m.cagrPct) : "—"}
                   tone={m.cagrPct != null && m.cagrPct >= 0 ? "gain" : "loss"}
                   sub={`over ${m.years.toFixed(1)}y`} />
-                <Metric label="Max drawdown" value={`−${m.maxDrawdownPct.toFixed(1)}%`} tone="loss"
-                  sub="peak to trough" />
+                <Metric label="Max drawdown" value={`−${m.maxDrawdownPct.toFixed(1)}%`}
+                  tone={m.maxDrawdownPct < m.buyHoldMaxDdPct ? "gain" : "loss"}
+                  sub={`buy & hold −${m.buyHoldMaxDdPct.toFixed(1)}%`} />
                 <Metric label="Win rate" value={`${m.winRate.toFixed(1)}%`}
                   sub={`${m.tradeCount} trades`} />
                 <Metric label="Profit factor" value={m.profitFactor != null ? m.profitFactor.toFixed(2) : "—"}

@@ -52,6 +52,10 @@ export interface Metrics {
   avgWinPct: number;
   avgLossPct: number;
   maxDrawdownPct: number;
+  /** Buy & hold's drawdown over the same window. Without this the strategy's
+   *  drawdown is unreadable — 32% looks bad until you see the benchmark took
+   *  60%. Omitting it led to exactly that misreading. */
+  buyHoldMaxDdPct: number;
   sharpe: number | null;
   exposurePct: number;      // % of bars holding a position
   avgBarsHeld: number;
@@ -311,7 +315,13 @@ export function runBacktest(
   spec: RuleSpec,
   symbol: string,
   cfg: BacktestConfig = DEFAULT_CONFIG,
+  /** Optional inclusive ISO date window, e.g. the 2006-2010 GFC regime. */
+  window?: { from?: string; to?: string },
 ): BacktestResult | null {
+  if (window) {
+    candles = candles.filter((c) =>
+      (!window.from || c.date >= window.from) && (!window.to || c.date <= window.to));
+  }
   if (candles.length < spec.warmup + 30) return null;
 
   const ind = buildIndicators(candles);
@@ -395,6 +405,15 @@ export function runBacktest(
     if (dd > maxDd) maxDd = dd;
   }
 
+  // Benchmark drawdown over the identical window.
+  let bhPeak = candles[spec.warmup].close, bhDd = 0;
+  for (let i = spec.warmup; i < candles.length; i++) {
+    const px = candles[i].close;
+    if (px > bhPeak) bhPeak = px;
+    const dd = (bhPeak - px) / bhPeak;
+    if (dd > bhDd) bhDd = dd;
+  }
+
   const rets: number[] = [];
   for (let i = 1; i < equity.length; i++) {
     const prev = equity[i - 1].value;
@@ -420,6 +439,7 @@ export function runBacktest(
       avgWinPct: wins.length ? wins.reduce((a, t) => a + t.pnlPct, 0) / wins.length : 0,
       avgLossPct: losses.length ? losses.reduce((a, t) => a + t.pnlPct, 0) / losses.length : 0,
       maxDrawdownPct: maxDd * 100,
+      buyHoldMaxDdPct: bhDd * 100,
       sharpe,
       exposurePct: equity.length ? (barsInMarket / equity.length) * 100 : 0,
       avgBarsHeld: trades.length ? trades.reduce((a, t) => a + t.bars, 0) / trades.length : 0,

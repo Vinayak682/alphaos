@@ -19,6 +19,8 @@ import {
   type Candle, type BacktestResult, type RuleSpec,
 } from "@/lib/backtest";
 
+export interface Window { from?: string; to?: string }
+
 const TWELVE_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_API_KEY ?? "";
 const CACHE_TTL = 12 * 60 * 60 * 1000;
 
@@ -106,8 +108,8 @@ export interface BacktestState {
   sweepProgress: { done: number; total: number } | null;
   running: boolean;
   error: string | null;
-  run: (specId: string, symbol: string) => Promise<void>;
-  runSweep: (specId: string, symbols: string[]) => Promise<void>;
+  run: (specId: string, symbol: string, window?: Window) => Promise<void>;
+  runSweep: (specId: string, symbols: string[], window?: Window) => Promise<void>;
   reset: () => void;
 }
 
@@ -119,19 +121,19 @@ export function useBacktest(): BacktestState {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const run = useCallback(async (specId: string, symbol: string) => {
+  const run = useCallback(async (specId: string, symbol: string, window?: Window) => {
     const spec: RuleSpec | undefined = RULE_SPECS.find((s) => s.id === specId);
     if (!spec) { setError(`Unknown strategy spec "${specId}"`); return; }
 
     setRunning(true); setError(null); setResult(null);
     try {
-      const candles = await fetchCandles(symbol);
+      const candles = await fetchCandles(symbol, window?.from && window.from < "2015" ? 5000 : 2000);
       if (candles.length < spec.warmup + 30) {
         throw new Error(
           `Only ${candles.length} bars available; this strategy needs ${spec.warmup + 30}`
         );
       }
-      const res = runBacktest(candles, spec, symbol, DEFAULT_CONFIG);
+      const res = runBacktest(candles, spec, symbol, DEFAULT_CONFIG, window);
       if (!res) throw new Error("Backtest produced no result");
       setResult(res);
     } catch (e) {
@@ -145,7 +147,7 @@ export function useBacktest(): BacktestState {
    * Same spec across many symbols. One symbol is an anecdote; the aggregate is
    * the only thing that says whether a rule set has an edge.
    */
-  const runSweep = useCallback(async (specId: string, symbols: string[]) => {
+  const runSweep = useCallback(async (specId: string, symbols: string[], window?: Window) => {
     const spec = RULE_SPECS.find((s) => s.id === specId);
     if (!spec) { setError(`Unknown strategy spec "${specId}"`); return; }
 
@@ -161,11 +163,12 @@ export function useBacktest(): BacktestState {
         // back-to-back gets the tail 429'd, which previously dropped symbols
         // silently and quietly shrank the denominator (3/13 reported as if it
         // were the full universe). Pace uncached equity fetches.
-        if (!isCrypto(sym) && !readCache(sym, 2000) && i > 0) {
+        const bars = window?.from && window.from < "2015" ? 5000 : 2000;
+        if (!isCrypto(sym) && !readCache(sym, bars) && i > 0) {
           await new Promise((r) => setTimeout(r, 8000));
         }
-        const c = await fetchCandles(sym);
-        const r = runBacktest(c, spec, sym, DEFAULT_CONFIG);
+        const c = await fetchCandles(sym, bars);
+        const r = runBacktest(c, spec, sym, DEFAULT_CONFIG, window);
         if (r) {
           rows.push({
             symbol: sym,
