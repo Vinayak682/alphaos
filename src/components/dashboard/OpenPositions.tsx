@@ -5,8 +5,18 @@ import { useStore } from "@/store/useStore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ExternalLink } from "lucide-react";
+import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 
-const POSITIONS = [
+interface Row {
+  symbol: string; side: string; qty: number;
+  entry: number; current: number; market: string;
+}
+
+// Shown only when there is no portfolio to read — the header labels it DEMO so
+// these never pass as real holdings. Previously this array was rendered
+// unconditionally, so the dashboard advertised five positions while the account
+// actually held one.
+const DEMO_POSITIONS: Row[] = [
   { symbol: "NVDA",    side: "LONG",  qty: 12,   entry: 845.20,  current: 891.20,  market: "US"     },
   { symbol: "BTCUSDT", side: "LONG",  qty: 0.25, entry: 103200,  current: 108420,  market: "CRYPTO" },
   { symbol: "AAPL",    side: "LONG",  qty: 50,   entry: 218.10,  current: 213.45,  market: "US"     },
@@ -32,6 +42,19 @@ const rowVariants = {
 export default function OpenPositions() {
   const { setSelectedSymbol } = useStore();
   const router = useRouter();
+  const { positions: livePositions, source } = usePaperPortfolio();
+
+  const isDemo = source === "mock" || livePositions.length === 0;
+  const POSITIONS: Row[] = isDemo
+    ? DEMO_POSITIONS
+    : livePositions.map((p) => ({
+        symbol: p.symbol,
+        side: p.side,
+        qty: Number(p.quantity),
+        entry: Number(p.entry_price),
+        current: Number(p.current_price ?? p.entry_price),
+        market: p.market,
+      }));
 
   const handleRowClick = (symbol: string) => {
     setSelectedSymbol(symbol);
@@ -45,6 +68,11 @@ export default function OpenPositions() {
         <h3 className="text-sm font-semibold font-heading">Open Positions</h3>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground">{POSITIONS.length} active</span>
+          {isDemo && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+              DEMO
+            </span>
+          )}
           <Link href="/portfolio"
             className="flex items-center gap-1 text-xs text-primary/70 hover:text-primary transition-colors group"
           >

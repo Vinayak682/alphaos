@@ -13,6 +13,7 @@ import {
   type USInstitution,
 } from "@/lib/institutions";
 import TradeModal from "@/components/ui/TradeModal";
+import { useInstitutionData } from "@/hooks/useInstitutionData";
 import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
 
 // ─── Color map ─────────────────────────────────────────────────────────────────
@@ -266,6 +267,18 @@ export default function InstitutionsPage() {
   const [copyTicker, setCopyTicker] = useState<{ symbol: string; market: string } | null>(null);
   const { stats, openTrade } = usePaperPortfolio();
 
+  // Supabase-first, falling back to the static arrays imported above. These
+  // shadow the module-level constants so the rest of the page is unchanged.
+  const {
+    us: US_INSTITUTIONS,
+    india: INDIA_SUPERINVESTORS,
+    uaeStocks: UAE_DIVIDEND_STOCKS,
+    strategyParams: STRATEGY_EXACT_PARAMS,
+    waha: WAHA_FUNDS,
+    sovereign: UAE_SOVEREIGN_FUNDS,
+    source: dataSource,
+  } = useInstitutionData();
+
   const totalUS  = US_INSTITUTIONS.reduce((a, i) => a + i.portfolioValueB, 0);
   const totalINR = INDIA_SUPERINVESTORS.reduce((a, i) => a + i.portfolioINRCr, 0);
   const avgYield = UAE_DIVIDEND_STOCKS.reduce((a, s) => a + s.dividendYield, 0) / UAE_DIVIDEND_STOCKS.length;
@@ -297,6 +310,12 @@ export default function InstitutionsPage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             Q1 2026 data
+            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded",
+              dataSource === "db"
+                ? "bg-primary/20 text-primary"
+                : "bg-blue-500/20 text-blue-400")}>
+              {dataSource === "db" ? "SUPABASE" : "BUILT-IN"}
+            </span>
           </div>
         </motion.div>
 

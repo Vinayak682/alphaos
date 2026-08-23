@@ -4,7 +4,13 @@ import { cn, formatPct } from "@/lib/utils";
 import { useStore } from "@/store/useStore";
 import { DEFAULT_WATCHLIST, MARKET_LABELS } from "@/lib/constants";
 import { TrendingUp, TrendingDown, RefreshCw, Zap, BarChart3, ArrowRight } from "lucide-react";
-import { useMarketData } from "@/hooks/useMarketData";
+// useMarketData hits /api/quotes, which CI strips from the static export — on
+// GitHub Pages it always failed and the page silently rendered MARKET_DATA
+// while still showing a "POLYGON LIVE" badge. useLivePrices goes through the
+// market-prices Edge Function instead, which works in both environments and
+// covers all four markets rather than just US + Crypto.
+import { useLivePrices } from "@/hooks/useLivePrices";
+import type { Market as PriceMarket } from "@/lib/market-data";
 import { useRouter } from "next/navigation";
 import type { Market } from "@/lib/constants";
 
@@ -173,12 +179,13 @@ export default function MarketsPage() {
   const router = useRouter();
   const symbols = DEFAULT_WATCHLIST[activeMarket as keyof typeof DEFAULT_WATCHLIST] ?? [];
 
-  // Only hit Polygon for US + Crypto (free tier)
-  const usePolygon = activeMarket === "US" || activeMarket === "CRYPTO";
-  const { quotes, loading, lastUpdated } = useMarketData(
-    usePolygon ? symbols : [],
-    activeMarket === "CRYPTO" ? "CRYPTO" : "US"
+  const { prices, loading, lastUpdated, liveCount } = useLivePrices(
+    symbols,
+    activeMarket as PriceMarket
   );
+  // Drives the badge and the subtitle: true only when quotes actually arrived,
+  // never merely because this market *should* have a feed.
+  const isLiveFeed = liveCount > 0;
 
   const overview = MARKET_OVERVIEW[activeMarket as Market] ?? [];
 
@@ -194,17 +201,24 @@ export default function MarketsPage() {
             {MARKET_LABELS[activeMarket as Market]} Markets
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {symbols.length} symbols · {usePolygon ? "Live via Polygon.io" : "Static data · NSE/ADX/DFM"}
-            {lastUpdated && ` · Updated ${lastUpdated.toLocaleTimeString()}`}
+            {symbols.length} symbols · {isLiveFeed
+              ? `${liveCount}/${symbols.length} live via Edge Function`
+              : "Reference prices — no live feed"}
+            {isLiveFeed && lastUpdated && ` · Updated ${lastUpdated.toLocaleTimeString()}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-          {usePolygon && (
+          {isLiveFeed ? (
             <span className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
               <motion.div className="w-1.5 h-1.5 rounded-full bg-primary"
                 animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
-              POLYGON LIVE
+              LIVE
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+              REFERENCE DATA
             </span>
           )}
         </div>
@@ -283,7 +297,7 @@ export default function MarketsPage() {
             </thead>
             <tbody className="divide-y divide-border/50">
               {symbols.map((sym, i) => {
-                const live = quotes[sym.toUpperCase()];
+                const live = prices.get(sym) ?? prices.get(sym.toUpperCase());
                 const fb   = MARKET_DATA[sym];
                 if (!fb) return null;
 
@@ -395,9 +409,9 @@ export default function MarketsPage() {
       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <Zap className="w-3 h-3 text-primary/50" />
-          {usePolygon
-            ? "Polygon.io · Daily OHLCV · Free tier · 60s refresh"
-            : `Static data · ${activeMarket === "INDIA" ? "NSE prices in INR" : "ADX/DFM prices in AED"} · Connect broker API for live quotes`}
+          {isLiveFeed
+            ? "market-prices Edge Function · Finnhub + Yahoo + Binance · 30s refresh"
+            : "Live feed unavailable — showing built-in reference prices, not current quotes"}
         </span>
         <span className="flex items-center gap-1">
           <BarChart3 className="w-3 h-3" />
