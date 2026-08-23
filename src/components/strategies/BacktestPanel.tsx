@@ -46,7 +46,7 @@ function Metric({ label, value, tone, sub }: {
 export default function BacktestPanel() {
   const [specId, setSpecId] = useState(RULE_SPECS[0].id);
   const [symbol, setSymbol] = useState("AAPL");
-  const { result, sweep, sweepProgress, running, error, run, runSweep } = useBacktest();
+  const { result, sweep, sweepSkipped, sweepProgress, running, error, run, runSweep } = useBacktest();
   const spec = RULE_SPECS.find((s) => s.id === specId)!;
 
   // Normalise buy & hold onto the same starting equity so the two lines compare.
@@ -101,9 +101,15 @@ export default function BacktestPanel() {
           <button onClick={() => runSweep(specId, SYMBOLS)} disabled={running}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-muted border border-border text-xs font-semibold hover:bg-muted/70 disabled:opacity-50 transition-colors">
             <Layers className="w-3 h-3" />
-            {running && sweepProgress ? `${sweepProgress.done}/${sweepProgress.total}` : `Sweep all ${SYMBOLS.length}`}
+            {running && sweepProgress ? `${sweepProgress.done}/${sweepProgress.total}…` : `Sweep all ${SYMBOLS.length}`}
           </button>
         </div>
+
+        <p className="text-[10px] text-muted-foreground -mt-1">
+          A cold sweep is paced at ~8s per uncached equity symbol to stay inside
+          Twelve Data&apos;s 8 requests/minute limit — roughly 90s the first time,
+          then instant for 12h from cache.
+        </p>
 
         {/* What this spec does and does not model */}
         <div className="bg-blue-500/10 border border-blue-500/25 rounded-lg p-3">
@@ -135,7 +141,10 @@ export default function BacktestPanel() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Metric label="Beat buy & hold" value={`${beats.length}/${real.length}`}
-                  tone={beats.length > real.length / 2 ? "gain" : "loss"} sub="across all symbols" />
+                  tone={beats.length > real.length / 2 ? "gain" : "loss"}
+                  sub={sweepSkipped.length
+                    ? `of ${SYMBOLS.length} attempted · ${sweepSkipped.length} skipped`
+                    : `all ${SYMBOLS.length} symbols tested`} />
                 <Metric label="In a rising market" value={String(genuine.length)}
                   sub="the only meaningful wins" />
                 <Metric label="Median return" value={formatPct(med(real.map((r) => r.returnPct)))}
@@ -179,6 +188,17 @@ export default function BacktestPanel() {
                   </tbody>
                 </table>
               </div>
+              {sweepSkipped.length > 0 && (
+                <div className="bg-yellow-500/10 border border-yellow-500/25 rounded-lg p-2.5">
+                  <p className="text-[11px] text-yellow-400 font-medium">
+                    {sweepSkipped.length} symbol{sweepSkipped.length === 1 ? "" : "s"} not tested —
+                    the aggregate above covers {real.length}, not all {SYMBOLS.length}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {sweepSkipped.map((s) => `${s.symbol} (${s.reason})`).join(" · ")}
+                  </p>
+                </div>
+              )}
               <p className="text-[10px] text-muted-foreground flex items-start gap-1.5">
                 <Info className="w-3 h-3 mt-0.5 shrink-0" />
                 Two verdicts are not edges. &quot;Never traded&quot; means the rules never fired and cash

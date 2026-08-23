@@ -96,9 +96,13 @@ export interface SweepRow {
   degenerate: boolean;
 }
 
+export interface SweepSkip { symbol: string; reason: string }
+
 export interface BacktestState {
   result: BacktestResult | null;
   sweep: SweepRow[] | null;
+  /** Symbols the sweep could not test. Surfaced so the denominator stays honest. */
+  sweepSkipped: SweepSkip[];
   sweepProgress: { done: number; total: number } | null;
   running: boolean;
   error: string | null;
@@ -110,6 +114,7 @@ export interface BacktestState {
 export function useBacktest(): BacktestState {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [sweep, setSweep] = useState<SweepRow[] | null>(null);
+  const [sweepSkipped, setSweepSkipped] = useState<SweepSkip[]>([]);
   const [sweepProgress, setSweepProgress] = useState<{ done: number; total: number } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,12 +149,21 @@ export function useBacktest(): BacktestState {
     const spec = RULE_SPECS.find((s) => s.id === specId);
     if (!spec) { setError(`Unknown strategy spec "${specId}"`); return; }
 
-    setRunning(true); setError(null); setSweep(null); setResult(null);
+    setRunning(true); setError(null); setSweep(null); setResult(null); setSweepSkipped([]);
     setSweepProgress({ done: 0, total: symbols.length });
     const rows: SweepRow[] = [];
+    const skipped: SweepSkip[] = [];
+
     for (let i = 0; i < symbols.length; i++) {
       const sym = symbols[i];
       try {
+        // Twelve Data allows 8 requests/minute. Firing 12 equity symbols
+        // back-to-back gets the tail 429'd, which previously dropped symbols
+        // silently and quietly shrank the denominator (3/13 reported as if it
+        // were the full universe). Pace uncached equity fetches.
+        if (!isCrypto(sym) && !readCache(sym, 2000) && i > 0) {
+          await new Promise((r) => setTimeout(r, 8000));
+        }
         const c = await fetchCandles(sym);
         const r = runBacktest(c, spec, sym, DEFAULT_CONFIG);
         if (r) {
@@ -163,15 +177,20 @@ export function useBacktest(): BacktestState {
             beat: r.metrics.totalReturnPct > r.metrics.buyHoldReturnPct,
             degenerate: r.metrics.tradeCount === 0,
           });
+        } else {
+          skipped.push({ symbol: sym, reason: `needs ${spec.warmup + 30} bars` });
         }
-      } catch { /* skip a symbol rather than abort the sweep */ }
+      } catch (e) {
+        skipped.push({ symbol: sym, reason: e instanceof Error ? e.message : "fetch failed" });
+      }
       setSweepProgress({ done: i + 1, total: symbols.length });
     }
     setSweep(rows);
+    setSweepSkipped(skipped);
     setRunning(false);
   }, []);
 
-  const reset = useCallback(() => { setResult(null); setSweep(null); setError(null); }, []);
+  const reset = useCallback(() => { setResult(null); setSweep(null); setSweepSkipped([]); setError(null); }, []);
 
-  return { result, sweep, sweepProgress, running, error, run, runSweep, reset };
+  return { result, sweep, sweepSkipped, sweepProgress, running, error, run, runSweep, reset };
 }
