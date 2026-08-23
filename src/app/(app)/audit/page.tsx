@@ -31,8 +31,10 @@ const EDGE_URL     = `${SUPABASE_URL}/functions/v1/market-prices`;
 //
 // Two things dominate this map and are easy to forget:
 //  1. Supabase project mxwrfiihmfmlhtmynpal is BACK, with signal and paper-trade
-//     data intact and all Edge Functions deployed. The 001/002/003 reference
-//     tables did NOT come back — those pages fall back to static data by design.
+//     data intact and all Edge Functions deployed. The 12 reference tables were
+//     re-created on 2026-08-23. `strategies` and the 003 intelligence tables are
+//     intentionally empty — the former was never seeded, the latter are filled at
+//     runtime — and db.ts falls back to static data for both.
 //  2. CI strips src/app/api before the static export, so every API route is
 //     DEV ONLY: it works on `npm run dev`, never on GitHub Pages.
 const FEATURES = [
@@ -79,7 +81,7 @@ const FEATURES = [
   { category: "Portfolio & Risk", feature: "Risk Radar",          status: "FAKE",    detail: "Static 6-dimension scores" },
   // ─ Infrastructure
   { category: "Infrastructure", feature: "Supabase Project",      status: "LIVE",    detail: "mxwrfiihmfmlhtmynpal restored; now authenticated with a sb_publishable_ key" },
-  { category: "Infrastructure", feature: "Reference Tables",      status: "MISSING", detail: "001/002/003 tables (strategies, institutions, news) did not survive — pages fall back to static data" },
+  { category: "Infrastructure", feature: "Reference Tables",      status: "LIVE",    detail: "All 12 restored 2026-08-23. us_institutions 9 rows, india_superinvestors 4, uae_dividend_stocks 15" },
   { category: "Infrastructure", feature: "Paper Trading Schema",  status: "LIVE",    detail: "Survived intact; also committed as migration 006, which was never in the repo before" },
   { category: "Infrastructure", feature: "Supabase Auth",         status: "MISSING", detail: "No login — all data under demo UUID" },
   { category: "Infrastructure", feature: "Morning Brain (Cron)",  status: "MISSING", detail: "Pipeline exists but nothing schedules it — no daily run" },

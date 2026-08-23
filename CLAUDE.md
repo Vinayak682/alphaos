@@ -37,16 +37,36 @@ WARNING: `GET /rest/v1/` (the schema root) rejects publishable keys with
 "Secret API key required". That is expected and is **not** a broken key — table reads
 work fine. Do not use the REST root as a health check.
 
-### What did NOT come back
-| Survived (with data) | Missing |
+### Outage aftermath — fully resolved 2026-08-23
+| Survived the outage (with data) | Re-created from migrations |
 |---|---|
-| `market_signals`, `signals_generated`, `alpha_signals` | `us_institutions`, `india_superinvestors`, `uae_dividend_stocks` |
-| `paper_portfolios`, `paper_positions`, `paper_trade_log` | `strategies`, `strategy_exact_params`, `uae_sovereign_funds`, `waha_funds` |
+| `market_signals`, `signals_generated`, `alpha_signals` | `us_institutions` (9), `india_superinvestors` (4), `uae_dividend_stocks` (15) |
+| `paper_portfolios`, `paper_positions`, `paper_trade_log` | `strategies`, `strategy_exact_params` (8), `uae_sovereign_funds` (3), `waha_funds` (3) |
 | All four Edge Functions | `news_articles`, `economic_events`, `block_deals`, `institutional_holdings`, `company_info` |
 
-Everything the app *writes* survived. The missing tables are reference data only, and
-`src/lib/db.ts` is Supabase-first with a static fallback, so those pages work regardless.
-Re-run `001`, `002` and `003` to restore DB-backed reference data.
+`strategies` and the five 003 intelligence tables are legitimately **empty**:
+002 never seeded `strategies`, and the intelligence tables are runtime-populated by
+pipelines that were never built. `src/lib/db.ts` falls back to static data when a query
+returns no rows, so both cases are handled.
+
+### ⚠️ Migration 003's `signals_generated` is STALE — do not run it
+003 declares `symbol` / `created_at` / `target_price` / `risk_reward`. The live table —
+the one `/api/morning-brain` actually writes — uses `ticker` / `generated_at` /
+`target_1` / `target_2` / `rr_ratio` / `model`. `CREATE TABLE IF NOT EXISTS` skips the
+existing table and the following index then fails with
+`ERROR 42703: column "symbol" does not exist`.
+
+Use `supabase/RESTORE_REFERENCE_TABLES.sql`, which excludes every statement touching a
+surviving table. Reconcile 003 with the live schema before trusting it.
+
+### Regenerating RESTORE_REFERENCE_TABLES.sql
+If you ever rebuild that bundle, note the two bugs that made the first three attempts
+fail, both caused by naive text handling:
+1. `CREATE POLICY` / `CREATE TRIGGER` have no `IF NOT EXISTS` — each needs a generated
+   `DROP ... IF EXISTS` first, or a re-run collides with surviving policies.
+2. Splitting SQL on `;` breaks statements: the 002 seed contains six semicolons **inside
+   quoted strings**. Use a tokenizer that tracks `''` escapes, `$$` blocks and `--`
+   comments, then verify seed row counts against the source.
 
 ## Remaining blockers
 
