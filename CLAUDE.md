@@ -68,6 +68,33 @@ fail, both caused by naive text handling:
    quoted strings**. Use a tokenizer that tracks `''` escapes, `$$` blocks and `--`
    comments, then verify seed row counts against the source.
 
+## Data-source honesty — the recurring bug class
+
+Four separate places showed placeholder data while looking authoritative. All had
+the same shape: a fetch that cannot succeed in production, and a fallback that is
+not labelled as one.
+
+| Place | What it did | Fixed |
+|---|---|---|
+| Dashboard KPIs | `/api/paper-trades` is stripped by CI, so it always fell back to `MOCK_PORTFOLIO` — advertised $287,450 and 14 positions against a real $99,161 and one | Falls through to a direct Supabase read |
+| `/markets` table | Same cause via `/api/quotes`, but the "POLYGON LIVE" badge was gated on market type, not on data arriving — showed NVDA at $891 against a real $215 | Repointed at the Edge Function; badge derives from `liveCount` |
+| Market overview strip | Hardcoded; every tile wrong (SENSEX 81,204 vs 77,541; BTC dominance 54.2% vs 59.4%) | `useMarketOverview`, live per tile |
+| Institutions / traders | `src/lib/db.ts` was dead code — nothing imported it, so pages rendered static data regardless of the database | `useInstitutionData` wires it up |
+
+**Rules that follow from this:**
+1. A "LIVE" badge must derive from data actually arriving (`liveCount > 0`,
+   `source !== "mock"`), never from which market or page is selected.
+2. Any fallback must be visible in the UI — DEMO DATA, BUILT-IN, REFERENCE DATA.
+3. Never fill a tile from a source that is *wrong* rather than missing. Asking
+   the Edge Function for `DFM` returns AED 1.41, the Dubai Financial Market
+   company share, not the ~4,600 index. Dropping the tile is correct.
+4. Where only a proxy exists, name it: VIXY is a VIX futures ETF, not the VIX
+   index; UUP tracks DXY without being DXY.
+5. **Postgres NUMERIC arrives from PostgREST as a string.** `cash_balance + x`
+   concatenates. Coerce with `Number()` before arithmetic — this rendered Total
+   Portfolio Value as $0.00 while Cash looked fine, because division coerces and
+   `+` does not.
+
 ## Remaining blockers
 
 | Blocker | Impact | Fix |
