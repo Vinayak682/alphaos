@@ -10,6 +10,7 @@ import { TrendingUp, TrendingDown, RefreshCw, Zap, BarChart3, ArrowRight } from 
 // market-prices Edge Function instead, which works in both environments and
 // covers all four markets rather than just US + Crypto.
 import { useLivePrices } from "@/hooks/useLivePrices";
+import { useMarketOverview } from "@/hooks/useMarketOverview";
 import type { Market as PriceMarket } from "@/lib/market-data";
 import { useRouter } from "next/navigation";
 import type { Market } from "@/lib/constants";
@@ -55,32 +56,8 @@ const MARKET_DATA: Record<string, SymbolData> = {
 };
 
 // ─── Market overview cards ────────────────────────────────────────────────────
-const MARKET_OVERVIEW: Record<Market, { label: string; value: string; change: number; sub: string }[]> = {
-  US: [
-    { label: "S&P 500",    value: "5,892.40", change:  0.62, sub: "↑ YTD +12.4%" },
-    { label: "NASDAQ 100", value: "20,841.2", change:  1.14, sub: "Tech led"      },
-    { label: "VIX",        value: "14.82",    change: -3.24, sub: "Fear low"      },
-    { label: "DXY",        value: "103.42",   change: -0.18, sub: "USD Index"     },
-  ],
-  INDIA: [
-    { label: "NIFTY 50",   value: "24,560",   change:  0.82, sub: "NSE Flagship" },
-    { label: "SENSEX",     value: "81,204",   change:  0.71, sub: "BSE 30"       },
-    { label: "NIFTY BANK", value: "52,840",   change:  1.04, sub: "Financials"   },
-    { label: "USD/INR",    value: "83.48",    change:  0.12, sub: "Rupee"        },
-  ],
-  UAE: [
-    { label: "ADX Index",  value: "9,842.4",  change:  0.48, sub: "Abu Dhabi"    },
-    { label: "DFM Index",  value: "4,612.8",  change:  0.31, sub: "Dubai"        },
-    { label: "USD/AED",    value: "3.672",    change:  0.00, sub: "Pegged"       },
-    { label: "Oil (Brent)",value: "82.40",    change:  1.24, sub: "$/bbl"        },
-  ],
-  CRYPTO: [
-    { label: "BTC Dom",    value: "54.2%",    change:  0.84, sub: "Dominance"    },
-    { label: "Total MCap", value: "$3.62T",   change:  2.18, sub: "Global Crypto" },
-    { label: "Fear/Greed", value: "72",       change:  8.00, sub: "Greed"        },
-    { label: "ETH/BTC",    value: "0.0354",   change: -0.42, sub: "Alt ratio"    },
-  ],
-};
+// MARKET_OVERVIEW removed — the strip is now live via useMarketOverview.
+
 
 // ─── Mini Sparkline ───────────────────────────────────────────────────────────
 function Sparkline({ data, up }: { data: number[]; up: boolean }) {
@@ -187,7 +164,7 @@ export default function MarketsPage() {
   // never merely because this market *should* have a feed.
   const isLiveFeed = liveCount > 0;
 
-  const overview = MARKET_OVERVIEW[activeMarket as Market] ?? [];
+  const { tiles: overview, loading: overviewLoading } = useMarketOverview(activeMarket);
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
@@ -262,9 +239,11 @@ export default function MarketsPage() {
             <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{card.label}</div>
             <div className="font-heading text-base font-semibold mono">{card.value}</div>
             <div className="flex items-center gap-2">
-              <span className={cn("text-xs mono font-medium", card.change >= 0 ? "gain" : "loss")}>
-                {card.change >= 0 ? "+" : ""}{card.change.toFixed(2)}%
-              </span>
+              {card.changePct !== null && (
+                <span className={cn("text-xs mono font-medium", card.changePct >= 0 ? "gain" : "loss")}>
+                  {card.changePct >= 0 ? "+" : ""}{card.changePct.toFixed(2)}%
+                </span>
+              )}
               <span className="text-[10px] text-muted-foreground">{card.sub}</span>
             </div>
           </motion.div>
