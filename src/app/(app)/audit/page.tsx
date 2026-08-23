@@ -71,7 +71,7 @@ const FEATURES = [
   // ─ Strategy
   { category: "Strategy",      feature: "Strategy Definitions",   status: "STATIC",  detail: "10 strategies with rules — good reference data" },
   { category: "Strategy",      feature: "Backtesting Engine",     status: "LIVE",    detail: "Client-side engine on real OHLCV (Twelve Data to 2006, Binance for crypto). Costs both sides, vs buy&hold. Works on Pages" },
-  { category: "Strategy",      feature: "Strategy P&L History",   status: "STATIC",  detail: "Card figures stay illustrative; the Backtest panel now produces measured results from real data alongside them" },
+  { category: "Strategy",      feature: "Strategy P&L History",   status: "LIVE",    detail: "Card metrics are measured by the backtest engine; the 4 strategies needing news/13F/ADR/GDELT history show no figures at all" },
   { category: "Strategy",      feature: "Apply Strategy to Trade",status: "MISSING", detail: "No 'trade this strategy' button wired to paper trading" },
   // ─ Portfolio & Risk
   { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "LIVE",    detail: "Reads paper_positions directly from Supabase on Pages; demo rows only when nothing is readable, and badged DEMO" },
