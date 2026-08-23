@@ -2,26 +2,31 @@
 -- AlphaOS — RESTORE REFERENCE TABLES
 --
 -- One paste-ready bundle of migrations 001 + 002 + 003, for the Supabase SQL
--- editor (Dashboard → SQL Editor → New query → paste → Run).
+-- editor (Dashboard -> SQL Editor -> New query -> paste -> Run).
 --
--- WHY: when project mxwrfiihmfmlhtmynpal was restored on 2026-08-22, the
--- tables the app WRITES came back with data intact (signals_generated,
--- alpha_signals, market_signals, paper_*), but the read-only reference tables
--- did not. This restores them.
+-- WHY: when project mxwrfiihmfmlhtmynpal was restored on 2026-08-22, the tables
+-- the app WRITES came back with data intact (signals_generated, alpha_signals,
+-- market_signals, paper_*), but the read-only reference tables did not.
 --
--- SAFE TO RE-RUN: every CREATE uses IF NOT EXISTS and every seed INSERT uses
--- ON CONFLICT DO UPDATE. It will not touch or duplicate your surviving data.
+-- IDEMPOTENT: this bundle is generated from 001/002/003 with guards added.
+--   * CREATE TABLE / CREATE INDEX already use IF NOT EXISTS
+--   * seed INSERTs already use ON CONFLICT DO UPDATE
+--   * CREATE POLICY  has no IF NOT EXISTS in Postgres, so every policy is
+--     preceded by a generated DROP POLICY IF EXISTS
+--   * CREATE TRIGGER likewise gets a generated DROP TRIGGER IF EXISTS
+--
+-- That last pair matters: market_signals SURVIVED the outage together with its
+-- policies, so a plain re-run fails with
+--   ERROR 42710: policy "Public read signals" for table "market_signals"
+--   already exists
+-- which is exactly what happened on the first attempt.
+--
+-- Dropping and recreating a policy does not touch table data.
 --
 -- Restores: us_institutions, india_superinvestors, uae_dividend_stocks,
 --           strategies, strategy_exact_params, uae_sovereign_funds,
 --           waha_funds, news_articles, economic_events, block_deals,
 --           institutional_holdings, company_info
---
--- Verify afterwards:
---   curl -s -o /dev/null -w "%{http_code}\n" \
---     "https://mxwrfiihmfmlhtmynpal.supabase.co/rest/v1/strategies?select=name&limit=1" \
---     -H "apikey: <publishable key>" -H "Authorization: Bearer <publishable key>"
---   200 = restored.
 -- ============================================================================
 
 
@@ -175,23 +180,39 @@ ALTER TABLE waha_funds             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE market_signals         ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone to read (public data)
+DROP POLICY IF EXISTS "Public read institutions" ON us_institutions;
 CREATE POLICY "Public read institutions"       ON us_institutions       FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read india investors" ON india_superinvestors;
 CREATE POLICY "Public read india investors"    ON india_superinvestors   FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read UAE stocks" ON uae_dividend_stocks;
 CREATE POLICY "Public read UAE stocks"         ON uae_dividend_stocks    FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read strategies" ON strategies;
 CREATE POLICY "Public read strategies"         ON strategies             FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read exact params" ON strategy_exact_params;
 CREATE POLICY "Public read exact params"       ON strategy_exact_params  FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read sovereign funds" ON uae_sovereign_funds;
 CREATE POLICY "Public read sovereign funds"    ON uae_sovereign_funds    FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read waha funds" ON waha_funds;
 CREATE POLICY "Public read waha funds"         ON waha_funds             FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public read signals" ON market_signals;
 CREATE POLICY "Public read signals"            ON market_signals         FOR SELECT USING (true);
 
 -- Service role can write (for your regular updates)
+DROP POLICY IF EXISTS "Service write institutions" ON us_institutions;
 CREATE POLICY "Service write institutions"     ON us_institutions       FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write india investors" ON india_superinvestors;
 CREATE POLICY "Service write india investors"  ON india_superinvestors   FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write UAE stocks" ON uae_dividend_stocks;
 CREATE POLICY "Service write UAE stocks"       ON uae_dividend_stocks    FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write strategies" ON strategies;
 CREATE POLICY "Service write strategies"       ON strategies             FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write exact params" ON strategy_exact_params;
 CREATE POLICY "Service write exact params"     ON strategy_exact_params  FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write sovereign funds" ON uae_sovereign_funds;
 CREATE POLICY "Service write sovereign funds"  ON uae_sovereign_funds    FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write waha funds" ON waha_funds;
 CREATE POLICY "Service write waha funds"       ON waha_funds             FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service write signals" ON market_signals;
 CREATE POLICY "Service write signals"          ON market_signals         FOR ALL USING (auth.role() = 'service_role');
 
 -- ─── Indexes ─────────────────────────────────────────────────
@@ -207,11 +228,17 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_us_inst_updated ON us_institutions;
 CREATE TRIGGER trg_us_inst_updated       BEFORE UPDATE ON us_institutions      FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_india_inv_updated ON india_superinvestors;
 CREATE TRIGGER trg_india_inv_updated     BEFORE UPDATE ON india_superinvestors  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_uae_stocks_updated ON uae_dividend_stocks;
 CREATE TRIGGER trg_uae_stocks_updated    BEFORE UPDATE ON uae_dividend_stocks   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_strategies_updated ON strategies;
 CREATE TRIGGER trg_strategies_updated    BEFORE UPDATE ON strategies            FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_exact_params_updated ON strategy_exact_params;
 CREATE TRIGGER trg_exact_params_updated  BEFORE UPDATE ON strategy_exact_params FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 
 -- END 001_alphaos_schema.sql
 
@@ -478,6 +505,7 @@ VALUES
  'Shariah-compliant assets and global sukuk',
  'Islamic income generation');
 
+
 -- END 002_seed_data.sql
 
 -- ===========================================================================
@@ -669,19 +697,32 @@ ALTER TABLE public.institutional_holdings  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_info            ENABLE ROW LEVEL SECURITY;
 
 -- Allow anon SELECT on all tables (frontend uses anon key)
+DROP POLICY IF EXISTS "anon_read_signals" ON public.signals_generated;
 CREATE POLICY "anon_read_signals"       ON public.signals_generated       FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_read_news" ON public.news_articles;
 CREATE POLICY "anon_read_news"          ON public.news_articles           FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_read_events" ON public.economic_events;
 CREATE POLICY "anon_read_events"        ON public.economic_events         FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_read_block_deals" ON public.block_deals;
 CREATE POLICY "anon_read_block_deals"   ON public.block_deals             FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_read_inst" ON public.institutional_holdings;
 CREATE POLICY "anon_read_inst"          ON public.institutional_holdings  FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_read_company" ON public.company_info;
 CREATE POLICY "anon_read_company"       ON public.company_info            FOR SELECT TO anon USING (true);
 
 -- Service role can write (morning brain Python backend uses service role key)
+DROP POLICY IF EXISTS "service_write_signals" ON public.signals_generated;
 CREATE POLICY "service_write_signals"   ON public.signals_generated       FOR ALL  TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_write_news" ON public.news_articles;
 CREATE POLICY "service_write_news"      ON public.news_articles           FOR ALL  TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_write_events" ON public.economic_events;
 CREATE POLICY "service_write_events"    ON public.economic_events         FOR ALL  TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_write_blocks" ON public.block_deals;
 CREATE POLICY "service_write_blocks"    ON public.block_deals             FOR ALL  TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_write_inst" ON public.institutional_holdings;
 CREATE POLICY "service_write_inst"      ON public.institutional_holdings  FOR ALL  TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_write_company" ON public.company_info;
 CREATE POLICY "service_write_company"   ON public.company_info            FOR ALL  TO service_role USING (true) WITH CHECK (true);
+
 
 -- END 003_intelligence_layer.sql
