@@ -809,5 +809,8 @@ export const WALK_FORWARD = {
     variantsWithPositiveOosEdge: 0,
   },
   variantsTested: 5,
-  edgeCorrelation: 0.19,
+  // Correlation between in-sample and out-of-sample edge. Two different numbers,
+  // both real — always state which population a quoted figure comes from.
+  edgeCorrelationEquities: 0.19, // 5 equity variants only
+  edgeCorrelationAll: 0.26, // all 10 runs, equities + crypto
 } as const;

@@ -12,8 +12,8 @@ The first backtest returned **+220% on AAPL** and looked excellent. It came from
 
 | Universe | Tuned on | Tested on | In-sample edge | Out-of-sample | Drawdown saved |
 |---|---|---|---:|---:|---:|
-| 10 US equities | 2007–2015 | 2015–2026 | **+0.27** Sharpe | **−0.10** | 38.3pp |
-| 7 crypto pairs | 2018–2022 | 2022–2026 | **+0.09** Sharpe | **−0.21** | 16.7pp |
+| 10 US equities | 2006–2015 | 2016–2026 | **+0.27** Sharpe | **−0.10** | 38.3pp |
+| 7 crypto pairs | 2018–2022 | 2023–2026 | **+0.09** Sharpe | **−0.21** | 16.7pp |
 
 The edge inverted in both. On crypto, **zero of five** variants held a positive out-of-sample edge.
 
