@@ -72,13 +72,14 @@ fail, both caused by naive text handling:
 
 | Blocker | Impact | Fix |
 |---|---|---|
-| `agent-research` returns 500 | Research agents dead. The deployed copy still calls the decommissioned Groq models; the fix is in the repo but not deployed. | `supabase functions deploy agent-research --project-ref mxwrfiihmfmlhtmynpal` |
-| Reference tables missing | Institutions/strategies pages serve static fallback rather than DB-backed data. | Re-run migrations 001, 002, 003 |
 | `TELEGRAM_BOT_TOKEN` | Never set. Telegram alerts inert (WhatsApp needs no server token). | `supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref mxwrfiihmfmlhtmynpal` |
 | `WEBHOOK_SECRET` | Not set. TradingView webhook unauthenticated. | Set in `.env.local`. |
 
-The first two need Supabase **account** access (CLI login or the dashboard SQL editor) —
-neither is reachable with a publishable or service-role key.
+Both remaining items are optional hardening, not outages.
+
+**Note:** the Supabase CLI cannot run on this Mac — the Homebrew binary is adhoc-signed
+and macOS SIGKILLs it (exit 137 on a bare `--version`). Use the dashboard SQL editor and
+Edge Functions editor instead of `supabase db push` / `functions deploy`.
 
 ---
 

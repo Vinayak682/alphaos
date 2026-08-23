@@ -86,7 +86,7 @@ const FEATURES = [
   { category: "Infrastructure", feature: "Supabase Auth",         status: "MISSING", detail: "No login — all data under demo UUID" },
   { category: "Infrastructure", feature: "Morning Brain (Cron)",  status: "MISSING", detail: "Pipeline exists but nothing schedules it — no daily run" },
   { category: "Infrastructure", feature: "Notification Delivery", status: "BROKEN",  detail: "send-notification Edge Function is deployed and responding, but TELEGRAM_BOT_TOKEN was never set" },
-  { category: "Infrastructure", feature: "Research Agents",       status: "BROKEN",  detail: "agent-research returns 500 — still running the old decommissioned Groq models; needs redeploy" },
+  { category: "Infrastructure", feature: "Research Agents",       status: "LIVE",    detail: "agent-research redeployed 2026-08-23 on openai/gpt-oss-120b — all 4 modes return 200" },
   { category: "Infrastructure", feature: "GitHub Pages Deploy",   status: "LIVE",    detail: "Push to main → static export → live in ~60s, Node 24" },
 ];
 
