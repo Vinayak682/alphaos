@@ -365,7 +365,9 @@ RESPONSE RULES:
       setChatHistory(h => [...h, {
         role: "bot",
         msg: raw === "NO_KEY"
-          ? "⚠ GROQ_API_KEY not configured. Add NEXT_PUBLIC_GROQ_API_KEY to .env.local and restart."
+          // The static export ships no LLM key — one embedded in the client bundle is
+          // readable by every visitor. AlphaBot therefore runs locally only.
+          ? "⚠ AlphaBot is disabled on the hosted build. It needs an LLM key, and a key shipped in a client bundle is readable by anyone who opens devtools — so this deployment ships without one. Run the repo locally with GROQ_API_KEY set to use it. Everything else on this site, including the backtest engine, works here."
           : `⚠ ${raw}`,
       }]);
       setTyping(false);
