@@ -76,7 +76,7 @@ const FEATURES = [
   // ─ Portfolio & Risk
   { category: "Portfolio & Risk", feature: "Portfolio Positions", status: "LIVE",    detail: "Reads paper_positions directly from Supabase on Pages; demo rows only when nothing is readable, and badged DEMO" },
   { category: "Portfolio & Risk", feature: "Portfolio KPIs",      status: "LIVE",    detail: "Real balance: $100,234.62 total, $99,161.02 cash. NUMERIC-as-string coercion fixed the $0.00 total" },
-  { category: "Portfolio & Risk", feature: "Equity Curve",        status: "FAKE",    detail: "8 hardcoded data points" },
+  { category: "Portfolio & Risk", feature: "Equity Curve",        status: "LIVE",    detail: "Rebuilt from paper_trade_log — realised equity per trade, final point marked to market. Flat between trades by construction" },
   { category: "Portfolio & Risk", feature: "Risk Index",          status: "LIVE",    detail: "Computed: SPY 30d realised vol + Fear&Greed + real concentration/exposure. Weights disclosed in-page" },
   { category: "Portfolio & Risk", feature: "Risk Radar",          status: "LIVE",    detail: "4 of 6 dimensions computed live; Correlation and Geo Risk shown as unavailable rather than invented" },
   { category: "Portfolio & Risk", feature: "Live Quotes Page",   status: "LIVE",    detail: "/markets repointed from the stripped /api/quotes to the Edge Function — all 4 markets, badge derives from liveCount" },

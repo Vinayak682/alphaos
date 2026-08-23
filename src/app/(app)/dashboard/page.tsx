@@ -9,19 +9,28 @@ import BotPerformance from "@/components/dashboard/BotPerformance";
 import AnimatedNumber from "@/components/ui/AnimatedNumber";
 import TradeModal from "@/components/ui/TradeModal";
 import { usePaperPortfolio } from "@/hooks/usePaperPortfolio";
+import { useEquityCurve } from "@/hooks/useEquityCurve";
 import { formatPct } from "@/lib/utils";
 import Link from "next/link";
 
-// 7-day equity history for the mini portfolio chart
-const EQUITY_HISTORY = [261200, 268400, 271800, 265300, 278900, 281200, 284100, 287450];
-
-function PortfolioSparkline() {
+function PortfolioSparkline({ series }: { series: number[] }) {
   const W = 200, H = 48;
-  const min = Math.min(...EQUITY_HISTORY) - 2000;
-  const max = Math.max(...EQUITY_HISTORY) + 2000;
+  if (series.length < 2) {
+    return (
+      <svg width={W} height={H} className="shrink-0">
+        <line x1="0" y1={H / 2} x2={W} y2={H / 2}
+          stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" strokeDasharray="3 3" />
+      </svg>
+    );
+  }
+  // Pad a flat series so a straight line still renders inside the box.
+  const lo = Math.min(...series), hi = Math.max(...series);
+  const pad = (hi - lo) < 1e-6 ? Math.max(1, Math.abs(hi) * 0.001) : (hi - lo) * 0.15;
+  const min = lo - pad;
+  const max = hi + pad;
   const range = max - min;
-  const pts = EQUITY_HISTORY.map((v, i) => {
-    const x = (i / (EQUITY_HISTORY.length - 1)) * W;
+  const pts = series.map((v, i) => {
+    const x = (i / (series.length - 1)) * W;
     const y = H - ((v - min) / range) * (H - 8) - 4;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
@@ -57,6 +66,7 @@ function PortfolioSparkline() {
 export default function DashboardPage() {
   const { stats, openTrade, source } = usePaperPortfolio();
   const p = stats;
+  const equity = useEquityCurve();
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
 
   return (
@@ -131,11 +141,22 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right: 7-day sparkline + label */}
+          {/* Right: equity curve rebuilt from the real trade log */}
           <div className="flex flex-col items-end gap-1">
-            <span className="text-[9px] text-muted-foreground uppercase tracking-widest">7-Day</span>
-            <PortfolioSparkline />
-            <span className="text-[10px] gain font-medium">↑ $26,250 (+10.1%)</span>
+            <span className="text-[9px] text-muted-foreground uppercase tracking-widest">
+              {equity.isReal ? equity.spanLabel : "No trades yet"}
+            </span>
+            <PortfolioSparkline series={equity.points.map((pt) => pt.equity)} />
+            {equity.isReal && equity.changeAbs != null && equity.changePct != null ? (
+              <span className={`text-[10px] font-medium ${equity.changeAbs >= 0 ? "gain" : "loss"}`}>
+                {equity.changeAbs >= 0 ? "↑" : "↓"} ${Math.abs(equity.changeAbs).toFixed(2)} ({formatPct(equity.changePct)})
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">open a trade to build a curve</span>
+            )}
+            <span className="text-[9px] text-muted-foreground/70">
+              realised equity · marked to market today
+            </span>
           </div>
         </div>
 
